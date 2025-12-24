@@ -14,8 +14,8 @@ from telegram.ext import (
 from datetime import datetime
 
 # 🔴 REPLACE THESE
-BOT_TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
-ADMIN_ID = 1974614381  # <-- your Telegram numeric ID
+BOT_TOKEN = ""
+ADMIN_ID =   # <-- your Telegram numeric ID
 
 # ---------- KEYBOARDS ----------
 
