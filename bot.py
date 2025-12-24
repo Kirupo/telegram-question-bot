@@ -1,77 +1,73 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Updater, MessageHandler, Filters, CallbackContext, CommandHandler
-import time
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 from datetime import datetime
 
-TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
-ADMIN_ID = 1974614381
+# Replace with your Telegram ID to receive messages
+ADMIN_ID = 123456789
 
-# Keyboard buttons
-menu_buttons = [['Question', 'Suggestion', 'Idea']]
-done_button = [['Done', 'Cancel']]
+# Options for user input
+options_keyboard = [["Question", "Suggestion", "Idea"], ["Cancel"]]
+done_keyboard = [["Done", "Cancel"]]
 
-# Track current conversation type per user
-user_type = {}
-
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "Welcome! Please choose one:",
-        reply_markup=ReplyKeyboardMarkup(menu_buttons, one_time_keyboard=True)
+# Start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = ReplyKeyboardMarkup(options_keyboard, resize_keyboard=True)
+    await update.message.reply_text(
+        "Hello! What do you want to send?", reply_markup=keyboard
     )
 
-def handle_message(update: Update, context: CallbackContext):
-    user_id = update.message.from_user.id
-    username = update.message.from_user.username
-    name = update.message.from_user.first_name
+# Handle messages
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
     text = update.message.text
+    chat_id = update.message.chat_id
 
-    # Handle menu selection
-    if text in ['Question', 'Suggestion', 'Idea']:
-        user_type[user_id] = text
-        update.message.reply_text(
-            f"You chose {text}. Send your message below.",
-            reply_markup=ReplyKeyboardMarkup(done_button, one_time_keyboard=True)
+    # Cancel button
+    if text.lower() == "cancel":
+        keyboard = ReplyKeyboardMarkup(options_keyboard, resize_keyboard=True)
+        await update.message.reply_text(
+            "Operation cancelled. Choose again:", reply_markup=keyboard
         )
         return
 
-    # Handle Done / Cancel
-    if text == 'Done':
-        update.message.reply_text(
-            "Do you have any more questions, suggestions, or ideas?",
-            reply_markup=ReplyKeyboardMarkup(menu_buttons, one_time_keyboard=True)
+    # Check if user pressed Done
+    if text.lower() == "done":
+        keyboard = ReplyKeyboardMarkup(options_keyboard, resize_keyboard=True)
+        await update.message.reply_text(
+            "Thank you! Choose what you want to send next:", reply_markup=keyboard
         )
-        if user_id in user_type:
-            del user_type[user_id]
-        return
-    elif text == 'Cancel':
-        update.message.reply_text(
-            "Conversation cancelled.",
-            reply_markup=ReplyKeyboardMarkup(menu_buttons, one_time_keyboard=True)
-        )
-        if user_id in user_type:
-            del user_type[user_id]
         return
 
-    # Forward message to admin with timestamp
-    if user_id in user_type:
-        msg_type = user_type[user_id]
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"[{timestamp}] {msg_type} from {name} (@{username}):\n{text}"
-        )
+    # Send message to admin
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"From: {user.username or user.first_name}\nTime: {timestamp}\nType: {text}",
+    )
 
-# Retry loop to avoid crashes
-while True:
-    try:
-        updater = Updater(TOKEN, use_context=True)
-        dp = updater.dispatcher
-        dp.add_handler(CommandHandler("start", start))
-        dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-        print("Bot is running...")
-        updater.start_polling()
-        updater.idle()
-    except Exception as e:
-        print("Network error:", e)
-        print("Retrying in 10 seconds...")
-        time.sleep(10)
+    # Ask if they have more
+    keyboard = ReplyKeyboardMarkup(done_keyboard, resize_keyboard=True)
+    await update.message.reply_text(
+        "Do you have any more questions, suggestions, or ideas?",
+        reply_markup=keyboard,
+    )
+
+# Main function
+def main():
+    TOKEN = "YOUR_BOT_TOKEN_HERE"
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
