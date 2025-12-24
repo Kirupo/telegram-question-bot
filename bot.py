@@ -9,7 +9,7 @@ from telegram.ext import (
 from datetime import datetime
 
 # Replace with your Telegram ID to receive messages
-ADMIN_ID = 123456789
+ADMIN_ID = 1974614381
 
 # Options for user input
 options_keyboard = [["Question", "Suggestion", "Idea"], ["Cancel"]]
