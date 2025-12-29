@@ -1,153 +1,151 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
-    CommandHandler,
     CallbackQueryHandler,
-    MessageHandler,
     ContextTypes,
+    MessageHandler,
     filters,
 )
 from datetime import datetime
 
-# Replace these with your Telegram IDs
-ADMIN_IDS = [7348815216, 1974614381]  # You can add two admin IDs
+# Replace with your Telegram admin IDs
+ADMIN_IDS = [7348815216, 1974614381]
 
 # Options
-suggestion_keyboard = [
-    [InlineKeyboardButton("Discussion", callback_data="suggestion_discussion")],
-    [InlineKeyboardButton("General", callback_data="suggestion_general")],
-    [InlineKeyboardButton("Cancel", callback_data="cancel")],
+SUGGESTION_OPTIONS = ["Discussion", "General"]
+QUESTION_OPTIONS = [
+    "Prayer", "Confession", "Scripture/Bible Verse", "Relationships", "Orthodox Practice",
+    "Communion", "General Theology", "Fasting", "Sin", "Saints and Intercession",
+    "Saint Mary", "Others"
 ]
 
-question_keyboard = [
-    [InlineKeyboardButton("Prayer", callback_data="question_prayer")],
-    [InlineKeyboardButton("Confession", callback_data="question_confession")],
-    [InlineKeyboardButton("Scripture/Bible Verse", callback_data="question_scripture")],
-    [InlineKeyboardButton("Relationships", callback_data="question_relationships")],
-    [InlineKeyboardButton("Orthodox Practice", callback_data="question_orthodox")],
-    [InlineKeyboardButton("Communion", callback_data="question_communion")],
-    [InlineKeyboardButton("General Theology", callback_data="question_general_theology")],
-    [InlineKeyboardButton("Fasting", callback_data="question_fasting")],
-    [InlineKeyboardButton("Sin", callback_data="question_sin")],
-    [InlineKeyboardButton("Saints & Intercession", callback_data="question_saints")],
-    [InlineKeyboardButton("Saint Mary", callback_data="question_mary")],
-    [InlineKeyboardButton("Others", callback_data="question_others")],
-    [InlineKeyboardButton("Cancel", callback_data="cancel")],
-]
+# To store user messages temporarily
+user_messages = {}
 
-done_keyboard = [
-    [InlineKeyboardButton("Done", callback_data="done")],
-    [InlineKeyboardButton("Cancel", callback_data="cancel")],
-]
-
-# Store user messages temporarily
-user_data = {}
-
-# Start command
+# --- Start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    user_data[user.id] = {"type": None, "messages": []}
     await update.message.reply_text(
-        "Hello 👋\nWelcome to 📖 Korea_gbi_gubae_bot\nThis bot is completely anonymous.\n\nPlease choose:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Question", callback_data="type_question")],
-            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")],
-        ]),
+        "Hello! I’m Korea_gbi_gubae_bot. Your messages are anonymous."
+    )
+    keyboard = [
+        [InlineKeyboardButton("Question", callback_data="type_question")],
+        [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
+    ]
+    await update.message.reply_text(
+        "Please choose an option:", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# Handle button presses
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- Handle inline button presses ---
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user = query.from_user
     await query.answer()
+    user_id = query.from_user.id
+    data = query.data
 
-    # Cancel
-    if query.data == "cancel":
-        user_data[user.id] = {"type": None, "messages": []}
+    if user_id not in user_messages:
+        user_messages[user_id] = {"type": "", "category": "", "texts": [], "message_ids": []}
+
+    # Choose type
+    if data == "type_question":
+        user_messages[user_id]["type"] = "Question"
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"question_{opt}")] for opt in QUESTION_OPTIONS]
+        await query.edit_message_text("Choose a question category:", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data == "type_suggestion":
+        user_messages[user_id]["type"] = "Suggestion"
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"suggestion_{opt}")] for opt in SUGGESTION_OPTIONS]
+        await query.edit_message_text("Choose a suggestion category:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # Suggestion category
+    elif data.startswith("suggestion_"):
+        category = data.split("_")[1]
+        user_messages[user_id]["category"] = category
+        keyboard = [
+            [InlineKeyboardButton("Done", callback_data="done")],
+            [InlineKeyboardButton("Cancel", callback_data="cancel")]
+        ]
         await query.edit_message_text(
-            "Your request has been cancelled. Choose again:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Question", callback_data="type_question")],
-                [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")],
-            ]),
+            f"Write your {category} suggestion below. Press Done when finished or Cancel to cancel.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return
 
-    # Choosing type
-    if query.data.startswith("type_"):
-        type_chosen = query.data.split("_")[1]
-        user_data[user.id]["type"] = type_chosen
-        if type_chosen == "question":
-            await query.edit_message_text(
-                "Please choose a category for your question:",
-                reply_markup=InlineKeyboardMarkup(question_keyboard)
-            )
-        elif type_chosen == "suggestion":
-            await query.edit_message_text(
-                "Please choose a category for your suggestion:",
-                reply_markup=InlineKeyboardMarkup(suggestion_keyboard)
-            )
-        return
-
-    # Choosing suggestion category
-    if query.data.startswith("suggestion_"):
-        user_data[user.id]["current_category"] = query.data
+    # Question category
+    elif data.startswith("question_"):
+        category = data.split("_")[1]
+        user_messages[user_id]["category"] = category
+        keyboard = [
+            [InlineKeyboardButton("Done", callback_data="done")],
+            [InlineKeyboardButton("Cancel", callback_data="cancel")]
+        ]
         await query.edit_message_text(
-            "Please type your suggestion now. When done, press Done.",
-            reply_markup=InlineKeyboardMarkup(done_keyboard)
+            f"Write your {category} question below. Press Done when finished or Cancel to cancel.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return
-
-    # Choosing question category
-    if query.data.startswith("question_"):
-        user_data[user.id]["current_category"] = query.data
-        await query.edit_message_text(
-            "Please type your question now. When done, press Done.",
-            reply_markup=InlineKeyboardMarkup(done_keyboard)
-        )
-        return
 
     # Done
-    if query.data == "done":
-        messages = user_data[user.id]["messages"]
-        category = user_data[user.id].get("current_category", "N/A")
-        type_ = user_data[user.id].get("type", "N/A")
+    elif data == "done":
+        combined_text = "\n".join(user_messages[user_id]["texts"])
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        full_message = "\n".join(messages)
+        message_type = user_messages[user_id]["type"]
 
-        send_text = f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {type_.capitalize()}\n💬 Category: {category}\n\n💬 Message:\n{full_message}"
+        # Determine day or evening
+        hour = datetime.now().hour
+        greeting = "day" if 5 <= hour < 18 else "evening"
 
+        # Forward each collected message to admins
         for admin_id in ADMIN_IDS:
-            await context.bot.send_message(chat_id=admin_id, text=send_text)
+            for msg_id in user_messages[user_id]["message_ids"]:
+                await context.bot.forward_message(chat_id=admin_id, from_chat_id=user_id, message_id=msg_id)
 
-        # Reset user data
-        user_data[user.id] = {"type": None, "messages": []}
+            # Send combined summary
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {message_type} - {user_messages[user_id]['category']}\n\n💬 Message:\n{combined_text}"
+            )
 
-        await query.edit_message_text("Thank you 🙏. Have a nice day!")
-        return
+        await query.edit_message_text(f"Thank you 🙏, have a nice {greeting}!")
+        user_messages.pop(user_id, None)
 
-# Handle user messages
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
+        # Show main menu again
+        keyboard = [
+            [InlineKeyboardButton("Question", callback_data="type_question")],
+            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
+        ]
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="Choose an option:", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    # Cancel
+    elif data == "cancel":
+        await query.edit_message_text("We have cancelled your request. We are here if you need anything else.")
+        user_messages.pop(user_id, None)
+        keyboard = [
+            [InlineKeyboardButton("Question", callback_data="type_question")],
+            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
+        ]
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="Choose an option:", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+# --- Collect text messages ---
+async def collect_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
     text = update.message.text
-    if user.id not in user_data:
-        user_data[user.id] = {"type": None, "messages": []}
+    if user_id in user_messages:
+        # Store text
+        user_messages[user_id]["texts"].append(text)
+        # Store message ID for forwarding
+        user_messages[user_id]["message_ids"].append(update.message.message_id)
+        await update.message.reply_text("Message recorded. Continue typing or press Done when finished.")
 
-    # Only store message if a type/category is chosen
-    if user_data[user.id].get("type") and user_data[user.id].get("current_category"):
-        user_data[user.id]["messages"].append(text)
-        await update.message.reply_text("Message recorded. Press Done when finished or Cancel to discard.")
-    else:
-        await update.message.reply_text("Please choose Question or Suggestion first using the buttons.")
-
-# Main
+# --- Main ---
 def main():
     TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
     app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect_message))
+    app.add_handler(CallbackQueryHandler(button))
 
     print("Bot is running...")
     app.run_polling()
