@@ -1,119 +1,156 @@
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     CallbackQueryHandler,
+    MessageHandler,
     ContextTypes,
     filters,
 )
 from datetime import datetime
 
-# 🔴 REPLACE THESE
-BOT_TOKEN = ""
-ADMIN_ID =   # <-- your Telegram numeric ID
+# Replace these with your Telegram IDs
+ADMIN_IDS = [7348815216, 1974614381]  # You can add two admin IDs
 
-# ---------- KEYBOARDS ----------
+# Options
+suggestion_keyboard = [
+    [InlineKeyboardButton("Discussion", callback_data="suggestion_discussion")],
+    [InlineKeyboardButton("General", callback_data="suggestion_general")],
+    [InlineKeyboardButton("Cancel", callback_data="cancel")],
+]
 
-def main_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("❓ Question", callback_data="question")],
-        [InlineKeyboardButton("💡 Suggestion", callback_data="suggestion")],
-        [InlineKeyboardButton("🚀 Idea", callback_data="idea")],
-    ])
+question_keyboard = [
+    [InlineKeyboardButton("Prayer", callback_data="question_prayer")],
+    [InlineKeyboardButton("Confession", callback_data="question_confession")],
+    [InlineKeyboardButton("Scripture/Bible Verse", callback_data="question_scripture")],
+    [InlineKeyboardButton("Relationships", callback_data="question_relationships")],
+    [InlineKeyboardButton("Orthodox Practice", callback_data="question_orthodox")],
+    [InlineKeyboardButton("Communion", callback_data="question_communion")],
+    [InlineKeyboardButton("General Theology", callback_data="question_general_theology")],
+    [InlineKeyboardButton("Fasting", callback_data="question_fasting")],
+    [InlineKeyboardButton("Sin", callback_data="question_sin")],
+    [InlineKeyboardButton("Saints & Intercession", callback_data="question_saints")],
+    [InlineKeyboardButton("Saint Mary", callback_data="question_mary")],
+    [InlineKeyboardButton("Others", callback_data="question_others")],
+    [InlineKeyboardButton("Cancel", callback_data="cancel")],
+]
 
-def done_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Done", callback_data="done")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
-    ])
+done_keyboard = [
+    [InlineKeyboardButton("Done", callback_data="done")],
+    [InlineKeyboardButton("Cancel", callback_data="cancel")],
+]
 
-# ---------- COMMANDS ----------
+# Store user messages temporarily
+user_data = {}
 
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    user = update.message.from_user
+    user_data[user.id] = {"type": None, "messages": []}
     await update.message.reply_text(
-        "What do you want to send?",
-        reply_markup=main_menu()
+        "Hello 👋\nWelcome to 📖 Korea_gbi_gubae_bot\nThis bot is completely anonymous.\n\nPlease choose:",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("Question", callback_data="type_question")],
+            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")],
+        ]),
     )
 
-# ---------- BUTTON HANDLER ----------
-
+# Handle button presses
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user = query.from_user
     await query.answer()
 
-    data = query.data
-
-    if data in ["question", "suggestion", "idea"]:
-        context.user_data["type"] = data
+    # Cancel
+    if query.data == "cancel":
+        user_data[user.id] = {"type": None, "messages": []}
         await query.edit_message_text(
-            f"Send your {data} now:"
-        )
-
-    elif data == "done":
-        context.user_data.clear()
-        await query.edit_message_text(
-            "Choose again:",
-            reply_markup=main_menu()
-        )
-
-    elif data == "cancel":
-        context.user_data.clear()
-        await query.edit_message_text(
-            "Cancelled. Choose again:",
-            reply_markup=main_menu()
-        )
-
-# ---------- MESSAGE HANDLER ----------
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if "type" not in context.user_data:
-        await update.message.reply_text(
-            "Please choose an option first.",
-            reply_markup=main_menu()
+            "Your request has been cancelled. Choose again:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("Question", callback_data="type_question")],
+                [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")],
+            ]),
         )
         return
 
+    # Choosing type
+    if query.data.startswith("type_"):
+        type_chosen = query.data.split("_")[1]
+        user_data[user.id]["type"] = type_chosen
+        if type_chosen == "question":
+            await query.edit_message_text(
+                "Please choose a category for your question:",
+                reply_markup=InlineKeyboardMarkup(question_keyboard)
+            )
+        elif type_chosen == "suggestion":
+            await query.edit_message_text(
+                "Please choose a category for your suggestion:",
+                reply_markup=InlineKeyboardMarkup(suggestion_keyboard)
+            )
+        return
+
+    # Choosing suggestion category
+    if query.data.startswith("suggestion_"):
+        user_data[user.id]["current_category"] = query.data
+        await query.edit_message_text(
+            "Please type your suggestion now. When done, press Done.",
+            reply_markup=InlineKeyboardMarkup(done_keyboard)
+        )
+        return
+
+    # Choosing question category
+    if query.data.startswith("question_"):
+        user_data[user.id]["current_category"] = query.data
+        await query.edit_message_text(
+            "Please type your question now. When done, press Done.",
+            reply_markup=InlineKeyboardMarkup(done_keyboard)
+        )
+        return
+
+    # Done
+    if query.data == "done":
+        messages = user_data[user.id]["messages"]
+        category = user_data[user.id].get("current_category", "N/A")
+        type_ = user_data[user.id].get("type", "N/A")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        full_message = "\n".join(messages)
+
+        send_text = f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {type_.capitalize()}\n💬 Category: {category}\n\n💬 Message:\n{full_message}"
+
+        for admin_id in ADMIN_IDS:
+            await context.bot.send_message(chat_id=admin_id, text=send_text)
+
+        # Reset user data
+        user_data[user.id] = {"type": None, "messages": []}
+
+        await query.edit_message_text("Thank you 🙏. Have a nice day!")
+        return
+
+# Handle user messages
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    msg_type = context.user_data["type"]
     text = update.message.text
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if user.id not in user_data:
+        user_data[user.id] = {"type": None, "messages": []}
 
-    admin_text = (
-        f"📩 NEW MESSAGE\n\n"
-        f"👤 Username: @{user.username or 'N/A'}\n"
-        f"📛 Name: {user.first_name}\n"
-        f"🕒 Time: {timestamp}\n"
-        f"📂 Type: {msg_type.upper()}\n\n"
-        f"💬 Message:\n{text}"
-    )
+    # Only store message if a type/category is chosen
+    if user_data[user.id].get("type") and user_data[user.id].get("current_category"):
+        user_data[user.id]["messages"].append(text)
+        await update.message.reply_text("Message recorded. Press Done when finished or Cancel to discard.")
+    else:
+        await update.message.reply_text("Please choose Question or Suggestion first using the buttons.")
 
-    await context.bot.send_message(
-        chat_id=ADMIN_ID,
-        text=admin_text
-    )
-
-    await update.message.reply_text(
-        "Message sent. What next?",
-        reply_markup=done_menu()
-    )
-
-# ---------- MAIN ----------
-
+# Main
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 Bot running...")
-    app.run_polling(poll_interval=0.5)
+    print("Bot is running...")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
