@@ -1,141 +1,122 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    ContextTypes,
+    MessageHandler,
+    CommandHandler,
+    filters,
+)
 from datetime import datetime
 
-# Replace with your Telegram admin IDs
-ADMIN_IDS = 1974614381  # <-- replace with your IDs
+TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
 
-# Options
-SUGGESTION_OPTIONS = ["Discussion", "General"]
+ADMIN_IDS = [7348815216, 1974614381]  # replace
+
 QUESTION_OPTIONS = [
-    "Prayer", "Confession", "Scripture/Bible Verse", "Relationships", "Orthodox Practice",
-    "Communion", "General Theology", "Fasting", "Sin", "Saints and Intercession",
-    "Saint Mary", "Others"
+    "Prayer", "Confession", "Scripture/Bible Verse", "Relationships",
+    "Orthodox Practice", "Communion", "General Theology", "Fasting",
+    "Sin", "Saints and Intercession", "Saint Mary", "Others"
 ]
 
-# Store user messages temporarily
-user_messages = {}
+SUGGESTION_OPTIONS = ["Discussion", "General"]
 
-# --- Start ---
+user_sessions = {}
+
+# ---------------- START ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Hello! I’m Korea_gbi_gubae_bot. Your messages are anonymous."
-    )
-    keyboard = [
-        [InlineKeyboardButton("Question", callback_data="type_question")],
-        [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
-    ]
-    await update.message.reply_text(
-        "Please choose an option:", reply_markup=InlineKeyboardMarkup(keyboard)
+        "👋 Hello!\n"
+        "I am *Korea_gbi_gubae_bot*\n"
+        "Your messages are *anonymous*.",
+        parse_mode="Markdown"
     )
 
-# --- Handle inline buttons ---
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("Question", callback_data="question")],
+        [InlineKeyboardButton("Suggestion", callback_data="suggestion")]
+    ]
+
+    await update.message.reply_text(
+        "Please choose one:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ---------------- BUTTONS ----------------
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
+    uid = query.from_user.id
+
+    if uid not in user_sessions:
+        user_sessions[uid] = {"type": "", "category": "", "texts": []}
+
     data = query.data
 
-    if user_id not in user_messages:
-        user_messages[user_id] = {"type": "", "category": "", "texts": []}
+    if data == "question":
+        user_sessions[uid]["type"] = "Question"
+        kb = [[InlineKeyboardButton(x, callback_data=f"q_{x}")] for x in QUESTION_OPTIONS]
+        await query.edit_message_text("Select question category:", reply_markup=InlineKeyboardMarkup(kb))
 
-    # --- Choose type ---
-    if data == "type_question":
-        user_messages[user_id]["type"] = "Question"
-        keyboard = [[InlineKeyboardButton(opt, callback_data=f"question_{opt}")] for opt in QUESTION_OPTIONS]
-        await query.edit_message_text("Choose a question category:", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data == "suggestion":
+        user_sessions[uid]["type"] = "Suggestion"
+        kb = [[InlineKeyboardButton(x, callback_data=f"s_{x}")] for x in SUGGESTION_OPTIONS]
+        await query.edit_message_text("Select suggestion category:", reply_markup=InlineKeyboardMarkup(kb))
 
-    elif data == "type_suggestion":
-        user_messages[user_id]["type"] = "Suggestion"
-        keyboard = [[InlineKeyboardButton(opt, callback_data=f"suggestion_{opt}")] for opt in SUGGESTION_OPTIONS]
-        await query.edit_message_text("Choose a suggestion category:", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data.startswith(("q_", "s_")):
+        cat = data[2:]
+        user_sessions[uid]["category"] = cat
 
-    # --- Suggestion category ---
-    elif data.startswith("suggestion_"):
-        category = data.split("_")[1]
-        user_messages[user_id]["category"] = category
-        keyboard = [
+        kb = [
             [InlineKeyboardButton("Done", callback_data="done")],
             [InlineKeyboardButton("Cancel", callback_data="cancel")]
         ]
+
         await query.edit_message_text(
-            f"Write your {category} suggestion below. Press Done when finished or Cancel to cancel.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            f"✍️ Send your message.\nPress *Done* when finished.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(kb)
         )
 
-    # --- Question category ---
-    elif data.startswith("question_"):
-        category = data.split("_")[1]
-        user_messages[user_id]["category"] = category
-        keyboard = [
-            [InlineKeyboardButton("Done", callback_data="done")],
-            [InlineKeyboardButton("Cancel", callback_data="cancel")]
-        ]
-        await query.edit_message_text(
-            f"Write your {category} question below. Press Done when finished or Cancel to cancel.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-    # --- Done ---
     elif data == "done":
-        combined_text = "\n".join(user_messages[user_id]["texts"])
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message_type = user_messages[user_id]["type"]
-        category = user_messages[user_id]["category"]
+        text = "\n".join(user_sessions[uid]["texts"])
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        for admin_id in ADMIN_IDS:
-            await context.bot.send_message(
-                chat_id=admin_id,
-                text=f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {message_type} - {category}\n\n💬 Message:\n{combined_text}"
-            )
+        msg = (
+            f"📩 NEW MESSAGE\n"
+            f"🕒 {time}\n"
+            f"📂 {user_sessions[uid]['type']} - {user_sessions[uid]['category']}\n\n"
+            f"💬 {text}"
+        )
 
-        # Determine greeting
+        for admin in ADMIN_IDS:
+            await context.bot.send_message(admin, msg)
+
         hour = datetime.now().hour
-        greeting = "day" if 5 <= hour < 18 else "evening"
-        await query.edit_message_text(f"Thank you 🙏, have a nice {greeting}!")
+        greet = "day" if hour < 18 else "evening"
 
-        user_messages.pop(user_id, None)
+        await query.edit_message_text(f"🙏 Thank you! Have a nice {greet}.")
+        user_sessions.pop(uid)
 
-        # Show main menu again
-        keyboard = [
-            [InlineKeyboardButton("Question", callback_data="type_question")],
-            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
-        ]
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="Choose an option:", reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-    # --- Cancel ---
     elif data == "cancel":
-        await query.edit_message_text("We have cancelled your request. We are here if you need anything else.")
-        user_messages.pop(user_id, None)
-        keyboard = [
-            [InlineKeyboardButton("Question", callback_data="type_question")],
-            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
-        ]
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="Choose an option:", reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        user_sessions.pop(uid, None)
+        await query.edit_message_text("❌ Cancelled. You can start again with /start")
 
-# --- Collect text messages ---
-async def collect_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    text = update.message.text
-    if user_id in user_messages:
-        user_messages[user_id]["texts"].append(text)
-        await update.message.reply_text("Message recorded. Continue typing or press Done when finished.")
+# ---------------- TEXT ----------------
+async def collect(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.message.from_user.id
+    if uid in user_sessions:
+        user_sessions[uid]["texts"].append(update.message.text)
 
-# --- Main ---
+# ---------------- MAIN ----------------
 def main():
-    TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"  # <-- Replace with your BotFather token
     app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect_message))
-    app.add_handler(CallbackQueryHandler(button))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect))
 
-    print("Bot is running...")
+    print("✅ Bot running")
     app.run_polling()
 
 if __name__ == "__main__":
