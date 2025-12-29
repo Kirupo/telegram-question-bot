@@ -117,7 +117,12 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect))
 
     print("✅ Bot running")
-    app.run_polling()
+    app.run_polling(
+    poll_interval=0.5,
+    timeout=5,
+    drop_pending_updates=True
+)
+
 
 if __name__ == "__main__":
     main()
