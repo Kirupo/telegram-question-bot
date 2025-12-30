@@ -1,197 +1,218 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, MessageHandler, CommandHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    MessageHandler,
+    CommandHandler,
+    ContextTypes,
+    filters,
+)
 from datetime import datetime
 
-# ----------------- CONFIG -----------------
+# ================= CONFIG =================
 TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
-ADMINS = [7348815216, 1974614381]  # Put your admin IDs here
 
-# ----------------- SESSION CLASS -----------------
+ADMINS = [7348815216, 1974614381]
+
+# ================= USER SESSION =================
 class UserSession:
     def __init__(self):
-        self.stage = "start"  # start -> choosing -> sub_option -> writing -> done
-        self.current_option = None
-        self.current_suboption = None
-        self.message_text = ""
+        self.stage = "start"
+        self.main_type = None
+        self.sub_type = None
+        self.messages = []
         self.last_message_id = None
-        self.sub_options_question = [
-            "Prayer", "Confession", "Scripture/Bible Verse", "Relationships",
-            "Orthodox Practice", "Communion", "General Theology", "Fasting",
-            "Saints and Intercession", "Saint Mary", "Others"
-        ]
-        self.sub_options_suggestion = [
-            "General", "Discussion"
-        ]
+
+QUESTION_SUBS = [
+    "Prayer",
+    "Confession",
+    "Scripture/Bible Verse",
+    "Relationships",
+    "Orthodox Practice",
+    "Communion",
+    "General Theology",
+    "Fasting",
+    "Sin",
+    "Saints and Intercession",
+    "Saint Mary",
+    "Others",
+]
+
+SUGGESTION_SUBS = [
+    "General",
+    "Discussion",
+]
 
 sessions = {}
 
-# ----------------- HELPERS -----------------
 def get_session(user_id):
     if user_id not in sessions:
         sessions[user_id] = UserSession()
     return sessions[user_id]
 
-def build_main_keyboard():
+# ================= KEYBOARDS =================
+def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Question", callback_data="option_question"),
-         InlineKeyboardButton("Suggestion", callback_data="option_suggestion")],
-        [InlineKeyboardButton("Cancel", callback_data="cancel")]
+        [InlineKeyboardButton("Question", callback_data="main_question")],
+        [InlineKeyboardButton("Suggestion", callback_data="main_suggestion")],
+        [InlineKeyboardButton("Cancel", callback_data="cancel")],
     ])
 
-def build_sub_keyboard(option):
-    if option == "question":
-        buttons = [[InlineKeyboardButton(x, callback_data=f"sub_{i}") for i, x in enumerate(UserSession().sub_options_question)]]
-    else:
-        buttons = [[InlineKeyboardButton(x, callback_data=f"sub_{i}") for i, x in enumerate(UserSession().sub_options_suggestion)]]
-    # Add back and cancel
-    buttons.append([InlineKeyboardButton("Back", callback_data="back"),
-                    InlineKeyboardButton("Cancel", callback_data="cancel")])
-    return InlineKeyboardMarkup(buttons)
+def sub_keyboard(options):
+    keyboard = []
+    for opt in options:
+        keyboard.append([InlineKeyboardButton(opt, callback_data=f"sub_{opt}")])
 
-# ----------------- COMMANDS -----------------
+    keyboard.append([InlineKeyboardButton("Back", callback_data="back")])
+    keyboard.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+def writing_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Done", callback_data="done")],
+        [InlineKeyboardButton("Back", callback_data="back")],
+        [InlineKeyboardButton("Cancel", callback_data="cancel")],
+    ])
+
+def restart_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Restart", callback_data="restart")]
+    ])
+
+# ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = get_session(user_id)
-    session.stage = "choosing"
-    session.current_option = None
-    session.current_suboption = None
-    session.message_text = ""
+    session.__init__()
 
-    msg = await context.bot.send_message(
-        chat_id=user_id,
-        text="☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
-             "👋 Hello! I am Korea_Gibi_Gubae_bot.\nYour messages are anonymous.\n\n"
-             "👋 ሰላም!\nእኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
-             "እነዚያ መልዕክቶች ስም-አልባ ናቸው እና\n"
-             "ማንነትህ በአስተዳዳሪዎች አይታይም።",
-        reply_markup=build_main_keyboard()
+    text = (
+        "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
+        "👋 ሰላም!\n"
+        "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
+        "መልዕክቶችዎ ስም-አልባ ናቸው።\n\n"
+        "———\n\n"
+        "👋 Hello!\n"
+        "I am Korea_gbi_gubae_bot.\n"
+        "Your messages are anonymous."
     )
-    session.last_message_id = msg.message_id
 
-# ----------------- CALLBACK HANDLER -----------------
+    msg = await update.message.reply_text(text, reply_markup=main_keyboard())
+    session.last_message_id = msg.message_id
+    session.stage = "choose_main"
+
+# ================= CALLBACK HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
-    data = query.data
-    session = get_session(user_id)
 
-    # ----------------- CANCEL -----------------
-    if data == "cancel":
-        session.stage = "done"
-        session.current_option = None
-        session.current_suboption = None
-        session.message_text = ""
+    user_id = query.from_user.id
+    session = get_session(user_id)
+    data = query.data
+
+    async def replace(text, keyboard):
         if session.last_message_id:
-            try: await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
-            except: pass
-        msg = await context.bot.send_message(
-            chat_id=user_id,
-            text="☦️\n🙏 Thank you!\nYour question/suggestion will be answered in upcoming discussions or sermons.\nHave a blessed time and stay tuned!\n\n"
-                 "🙏 እናመሰግናለን!\nጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
-                 "ቡሩክ ጊዜ ይቆዩ እና ይከታትሉ!\n",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Restart", callback_data="restart")]])
-        )
+            try:
+                await context.bot.delete_message(user_id, session.last_message_id)
+            except:
+                pass
+        msg = await context.bot.send_message(user_id, text, reply_markup=keyboard)
         session.last_message_id = msg.message_id
+
+    # -------- CANCEL --------
+    if data == "cancel":
+        await replace(
+            "☦️\n🙏 Thank you!\nYour question/suggestion will be answered in upcoming discussions or sermons.\n\n"
+            "———\n\n"
+            "🙏 እናመሰግናለን!\n"
+            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
+            "☦️",
+            restart_keyboard(),
+        )
         return
 
-    # ----------------- RESTART -----------------
+    # -------- RESTART --------
     if data == "restart":
         await start(update, context)
         return
 
-    # ----------------- MAIN OPTION -----------------
-    if data.startswith("option_"):
-        session.current_option = data.split("_")[1]
-        session.stage = "sub_option"
-        if session.last_message_id:
-            try: await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
-            except: pass
-        msg = await context.bot.send_message(
-            chat_id=user_id,
-            text=f"You chose: {session.current_option.title()}\nSelect a sub-option:",
-            reply_markup=build_sub_keyboard(session.current_option)
-        )
-        session.last_message_id = msg.message_id
+    # -------- MAIN CHOICE --------
+    if data == "main_question":
+        session.main_type = "Question"
+        session.stage = "choose_sub"
+        await replace("Select a category:", sub_keyboard(QUESTION_SUBS))
         return
 
-    # ----------------- SUB OPTION -----------------
-    if data.startswith("sub_") and session.stage == "sub_option":
-        sub_idx = int(data.split("_")[1])
-        if session.current_option == "question":
-            session.current_suboption = session.sub_options_question[sub_idx]
-        else:
-            session.current_suboption = session.sub_options_suggestion[sub_idx]
+    if data == "main_suggestion":
+        session.main_type = "Suggestion"
+        session.stage = "choose_sub"
+        await replace("Select a category:", sub_keyboard(SUGGESTION_SUBS))
+        return
 
+    # -------- SUB CHOICE --------
+    if data.startswith("sub_"):
+        session.sub_type = data.replace("sub_", "")
         session.stage = "writing"
-        if session.last_message_id:
-            try: await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
-            except: pass
-        msg = await context.bot.send_message(
-            chat_id=user_id,
-            text=f"You chose: {session.current_option.title()} - {session.current_suboption}\n\nWrite your message below. Press Done when finished.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="back"),
-                 InlineKeyboardButton("Cancel", callback_data="cancel")]
-            ])
+        session.messages = []
+        await replace(
+            "✍️ Write your message below.\nYou may send multiple messages.\nPress *Done* when finished.",
+            writing_keyboard(),
         )
-        session.last_message_id = msg.message_id
         return
 
-    # ----------------- BACK -----------------
+    # -------- BACK --------
     if data == "back":
         if session.stage == "writing":
-            session.stage = "sub_option"
-            if session.last_message_id:
-                try: await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
-                except: pass
-            msg = await context.bot.send_message(
-                chat_id=user_id,
-                text=f"You chose: {session.current_option.title()}\nSelect a sub-option:",
-                reply_markup=build_sub_keyboard(session.current_option)
-            )
-            session.last_message_id = msg.message_id
-        elif session.stage == "sub_option":
-            await start(update, context)
+            await replace("Select a category:", sub_keyboard(
+                QUESTION_SUBS if session.main_type == "Question" else SUGGESTION_SUBS
+            ))
+            session.stage = "choose_sub"
         return
 
-# ----------------- MESSAGE HANDLER -----------------
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    text = update.message.text
+    # -------- DONE --------
+    if data == "done":
+        combined = "\n".join(session.messages).strip()
+        if not combined:
+            return
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        admin_text = (
+            "📩 NEW MESSAGE\n"
+            f"🕒 Time: {now}\n"
+            f"📂 Type: {session.main_type} - {session.sub_type}\n\n"
+            "💬 Message:\n"
+            f"{combined}"
+        )
+
+        for admin in ADMINS:
+            await context.bot.send_message(admin, admin_text)
+
+        await replace(
+            "☦️\n🙏 Thank you!\nYour question/suggestion will be answered in upcoming discussions or sermons.\n\n"
+            "———\n\n"
+            "🙏 እናመሰግናለን!\n"
+            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
+            "☦️",
+            restart_keyboard(),
+        )
+        return
+
+# ================= MESSAGE HANDLER =================
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     session = get_session(user_id)
 
     if session.stage == "writing":
-        session.message_text = text
-        session.stage = "done"
+        session.messages.append(update.message.text)
 
-        if session.last_message_id:
-            try: await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
-            except: pass
-
-        # Format message for admin
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        formatted = f"📩 NEW MESSAGE\n🕒 Time: {now}\n📂 Type: {session.current_option.title()} - {session.current_suboption}\n\n💬 Message:\n{session.message_text}"
-
-        for admin_id in ADMINS:
-            await context.bot.send_message(chat_id=admin_id, text=formatted)
-
-        # Send outro
-        msg = await context.bot.send_message(
-            chat_id=user_id,
-            text="☦️\n🙏 Thank you!\nYour question/suggestion will be answered in upcoming discussions or sermons.\nHave a blessed time and stay tuned!\n\n"
-                 "🙏 እናመሰግናለን!\nጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
-                 "ቡሩክ ጊዜ ይቆዩ እና ይከታትሉ!\n",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Restart", callback_data="restart")]])
-        )
-        session.last_message_id = msg.message_id
-
-# ----------------- MAIN -----------------
+# ================= MAIN =================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
     print("✅ Bot running")
     app.run_polling()
 
