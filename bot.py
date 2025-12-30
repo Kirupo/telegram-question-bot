@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 from datetime import datetime
 
 # Replace with your Telegram admin IDs
-ADMIN_IDS = [123456789, 987654321]
+ADMIN_IDS = [7348815216, 1974614381]
 
 # Options
 SUGGESTION_OPTIONS = ["Discussion", "General"]
@@ -144,7 +144,7 @@ async def collect_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Main ---
 def main():
-    TOKEN = "YOUR_BOT_TOKEN_HERE"
+    TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
