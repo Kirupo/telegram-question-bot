@@ -1,8 +1,4 @@
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -13,149 +9,180 @@ from telegram.ext import (
 )
 from datetime import datetime
 
-# ================= CONFIG =================
+# ================== CONFIG ==================
 TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
-ADMIN_IDS = [7348815216, 1974614381]
+ADMIN_IDS = [7348815216, 1974614381]  # replace with your Telegram ID(s)
 
-# ================= DATA =================
-QUESTION_CATEGORIES = [
-    "Prayer", "Confession", "Scripture / Bible Verse", "Relationships",
-    "Orthodox Practice", "Communion", "General Theology", "Fasting",
-    "Sin", "Saints and Intercession", "Saint Mary", "Others"
+QUESTION_OPTIONS = [
+    "Prayer",
+    "Confession",
+    "Scripture / Bible Verse",
+    "Relationships",
+    "Orthodox Practice",
+    "Communion",
+    "General Theology",
+    "Fasting",
+    "Sin",
+    "Saints and Intercession",
+    "Saint Mary",
+    "Others",
 ]
 
-SUGGESTION_CATEGORIES = ["Discussion", "General"]
+SUGGESTION_OPTIONS = ["Discussion", "General"]
 
-user_sessions = {}
+# Store user states
+user_data_store = {}
 
-# ================= KEYBOARDS =================
-def main_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("❓ Question", callback_data="question")],
-        [InlineKeyboardButton("💡 Suggestion", callback_data="suggestion")]
-    ])
+# ================== TEXTS ==================
+INTRO_TEXT = (
+    "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
+    "👋 ሰላም!\n"
+    "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
+    "እነዚያ መልዕክቶች ስም-አልባ ናቸው እና\n"
+    "ማንነትህ በአስተዳዳሪዎች አይታይም።\n\n"
+    "———\n\n"
+    "👋 Hello!\n"
+    "I am Korea_gbi_gubae_bot.\n"
+    "Your messages are anonymous."
+)
 
-def done_cancel_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Done", callback_data="done")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
-    ])
+THANK_YOU_TEXT = (
+    "☦️\n"
+    "🙏 Thank you!\n"
+    "Your question/suggestion will be answered in upcoming discussions or sermons.\n"
+    "Have a blessed time and stay tuned!\n\n"
+    "———\n\n"
+    "🙏 እናመሰግናለን!\n"
+    "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
+    "ቡሩክ ጊዜ ይቆዩ እና ይከታትሉ!\n"
+    "☦️"
+)
 
-# ================= START =================
+CANCEL_TEXT = (
+    "☦️\n"
+    "❌ Your message has been cancelled.\n"
+    "Have a blessed time.\n\n"
+    "———\n\n"
+    "❌ መልእክትዎ ተሰርዟል።\n"
+    "የተባረከ ጊዜ ይሁንላችሁ።\n"
+    "☦️"
+)
+
+# ================== HANDLERS ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_sessions.pop(update.effective_user.id, None)
+    user_id = update.effective_user.id
+    user_data_store.pop(user_id, None)
 
-    intro_text = (
-        "👋 ሰላም!\n"
-        "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
-        "እነዚያ መልዕክቶች ስም-አልባ ናቸው እና\n"
-        "ማንነትህ በአስተዳዳሪዎች አይታይም።\n\n"
-        "👋 Hello!\n"
-        "I am Korea_gbi_gubae_bot.\n"
-        "Your messages are anonymous."
+    keyboard = [
+        [InlineKeyboardButton("❓ Question", callback_data="type_question")],
+        [InlineKeyboardButton("💡 Suggestion", callback_data="type_suggestion")],
+    ]
+
+    await update.message.reply_text(INTRO_TEXT)
+    await update.message.reply_text(
+        "Please choose an option:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
-    await update.message.reply_text(intro_text, reply_markup=main_menu())
 
-# ================= BUTTON HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     user_id = query.from_user.id
     data = query.data
 
-    user_sessions.setdefault(user_id, {"type": "", "category": "", "messages": []})
+    if user_id not in user_data_store:
+        user_data_store[user_id] = {"type": "", "category": "", "texts": []}
 
-    if data == "question":
+    if data == "type_question":
+        user_data_store[user_id]["type"] = "Question"
         keyboard = [
-            [InlineKeyboardButton(cat, callback_data=f"q_{cat}")]
-            for cat in QUESTION_CATEGORIES
+            [InlineKeyboardButton(opt, callback_data=f"q_{opt}")]
+            for opt in QUESTION_OPTIONS
         ]
         await query.edit_message_text(
             "Choose a question category:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
-    elif data == "suggestion":
+    elif data == "type_suggestion":
+        user_data_store[user_id]["type"] = "Suggestion"
         keyboard = [
-            [InlineKeyboardButton(cat, callback_data=f"s_{cat}")]
-            for cat in SUGGESTION_CATEGORIES
+            [InlineKeyboardButton(opt, callback_data=f"s_{opt}")]
+            for opt in SUGGESTION_OPTIONS
         ]
         await query.edit_message_text(
-            "Choose a suggestion type:",
+            "Choose a suggestion category:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
     elif data.startswith(("q_", "s_")):
-        user_sessions[user_id]["type"] = "Question" if data.startswith("q_") else "Suggestion"
-        user_sessions[user_id]["category"] = data[2:]
+        category = data.split("_", 1)[1]
+        user_data_store[user_id]["category"] = category
+
+        keyboard = [
+            [InlineKeyboardButton("✅ Done", callback_data="done")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
+        ]
 
         await query.edit_message_text(
-            "Please write your message below.\n"
-            "Press ✅ Done when finished or ❌ Cancel to cancel.",
-            reply_markup=done_cancel_menu(),
+            f"Write your {category} message below.\n"
+            "Press Done when finished or Cancel to cancel.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
     elif data == "done":
-        session = user_sessions.get(user_id)
-        if not session or not session["messages"]:
-            await query.edit_message_text("No message received.")
+        stored = user_data_store.get(user_id)
+        if not stored or not stored["texts"]:
+            await query.edit_message_text("No message was written.")
             return
 
-        combined = "\n".join(session["messages"])
+        text = "\n".join(stored["texts"])
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        admin_text = (
-            "📩 NEW MESSAGE\n"
-            f"🕒 Time: {timestamp}\n"
-            f"📂 Type: {session['type']} – {session['category']}\n\n"
-            "💬 Message:\n"
-            f"{combined}"
-        )
-
         for admin in ADMIN_IDS:
-            await context.bot.send_message(chat_id=admin, text=admin_text)
+            await context.bot.send_message(
+                chat_id=admin,
+                text=(
+                    "📩 NEW MESSAGE\n"
+                    f"🕒 {timestamp}\n"
+                    f"📂 {stored['type']} - {stored['category']}\n\n"
+                    f"{text}"
+                ),
+            )
 
-        await query.edit_message_text(
-            "☦️\n"
-            "🙏 Thank you!\n"
-            "Your question/suggestion will be answered in upcoming discussions or sermons.\n"
-            "Have a blessed time and stay tuned!\n\n"
-            "———\n\n"
-            "🙏 እናመሰግናለን!\n"
-            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
-            "ቡሩክ ጊዜ ይቆዩ እና ይከታትለው!\n"
-            "☦️",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔁 Start Again", callback_data="restart")]
-            ])
+        await query.edit_message_text(THANK_YOU_TEXT)
+
+        start_keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🔄 Start Again", callback_data="restart")]]
+        )
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="",
+            reply_markup=start_keyboard,
         )
 
-        user_sessions.pop(user_id, None)
+        user_data_store.pop(user_id, None)
 
     elif data == "cancel":
-        user_sessions.pop(user_id, None)
-        await query.edit_message_text(
-            "☦️\n"
-            "❌ Your message has been cancelled.\n"
-            "Have a blessed time.\n\n"
-            "———\n\n"
-            "❌ መልእክትዎ ተሰርዟል።\n"
-            "የተባረከ ጊዜ ይሁንላችሁ።\n"
-            "☦️",
-            reply_markup=main_menu(),
-        )
+        await query.edit_message_text(CANCEL_TEXT)
+        user_data_store.pop(user_id, None)
 
     elif data == "restart":
         await start(update, context)
 
-# ================= TEXT COLLECTOR =================
-async def collect_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id in user_sessions:
-        user_sessions[user_id]["messages"].append(update.message.text)
 
-# ================= MAIN =================
+async def collect_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if user_id in user_data_store:
+        user_data_store[user_id]["texts"].append(update.message.text)
+        await update.message.reply_text(
+            "✍️ Message saved. Continue typing or press Done."
+        )
+
+
+# ================== MAIN ==================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -165,6 +192,7 @@ def main():
 
     print("✅ Bot running")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
