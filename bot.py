@@ -1,38 +1,36 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 from datetime import datetime
 
-# Replace with your Telegram admin IDs
-ADMIN_IDS = [7348815216, 1974614381]
+# Admin IDs
+ADMIN_IDS = [7348815216, 1974614381]  # Replace with your Telegram IDs
 
-# Question and suggestion options
+# Options
+SUGGESTION_OPTIONS = ["Discussion", "General"]
 QUESTION_OPTIONS = [
     "Prayer", "Confession", "Scripture/Bible Verse", "Relationships", "Orthodox Practice",
     "Communion", "General Theology", "Fasting", "Sin", "Saints and Intercession",
     "Saint Mary", "Others"
 ]
-SUGGESTION_OPTIONS = ["Discussion", "General"]
 
 # Store user messages temporarily
 user_messages = {}
 
-# --- Start Command ---
+# --- Start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("Question", callback_data="type_question")],
-                [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]]
-    intro_text = (
-        "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
-        "👋 ሰላም!\n"
-        "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
-        "መልዕክቶችህ ስም-አልባ ናቸው እና ማንነትህ በአስተዳዳሪዎች አይታይም።\n\n"
-        "———\n\n"
-        "👋 Hello!\n"
-        "I am Korea_gbi_gubae_bot.\n"
-        "Your messages are anonymous."
+    keyboard = [[InlineKeyboardButton("Start", callback_data="intro")]]
+    await update.message.reply_text(
+        "Press Start to begin:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    await update.message.reply_text(intro_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- Handle Inline Buttons ---
+# --- Handle inline buttons ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -42,27 +40,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in user_messages:
         user_messages[user_id] = {"type": "", "category": "", "texts": []}
 
-    # Select Type
+    # Intro after pressing Start
+    if data == "intro":
+        intro_text = (
+            "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
+            "👋 ሰላም!\n"
+            "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
+            "እነዚያ መልዕክቶች ስም-አልባ ናቸው እና\n"
+            "ማንነትህ በአስተዳዳሪዎች አይታይም።\n\n"
+            "———\n\n"
+            "👋 Hello!\n"
+            "I am Korea_gbi_gubae_bot.\n"
+            "Your messages are anonymous."
+        )
+        keyboard = [
+            [InlineKeyboardButton("Question", callback_data="type_question")],
+            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
+        ]
+        await query.edit_message_text(intro_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    # Choose type
     if data == "type_question":
         user_messages[user_id]["type"] = "Question"
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"question_{opt}")] for opt in QUESTION_OPTIONS]
-        keyboard.append([InlineKeyboardButton("Back", callback_data="back_to_start"),
-                         InlineKeyboardButton("Cancel", callback_data="cancel")])
+        keyboard.append([InlineKeyboardButton("Back", callback_data="intro")])
         await query.edit_message_text("Choose a question category:", reply_markup=InlineKeyboardMarkup(keyboard))
     elif data == "type_suggestion":
         user_messages[user_id]["type"] = "Suggestion"
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"suggestion_{opt}")] for opt in SUGGESTION_OPTIONS]
-        keyboard.append([InlineKeyboardButton("Back", callback_data="back_to_start"),
-                         InlineKeyboardButton("Cancel", callback_data="cancel")])
+        keyboard.append([InlineKeyboardButton("Back", callback_data="intro")])
         await query.edit_message_text("Choose a suggestion category:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    # Suggestion category selected
+    # Choose suggestion category
     elif data.startswith("suggestion_"):
         category = data.split("_")[1]
         user_messages[user_id]["category"] = category
         keyboard = [
             [InlineKeyboardButton("Done", callback_data="done")],
-            [InlineKeyboardButton("Back", callback_data="type_suggestion")],
             [InlineKeyboardButton("Cancel", callback_data="cancel")]
         ]
         await query.edit_message_text(
@@ -70,13 +85,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # Question category selected
+    # Choose question category
     elif data.startswith("question_"):
         category = data.split("_")[1]
         user_messages[user_id]["category"] = category
         keyboard = [
             [InlineKeyboardButton("Done", callback_data="done")],
-            [InlineKeyboardButton("Back", callback_data="type_question")],
             [InlineKeyboardButton("Cancel", callback_data="cancel")]
         ]
         await query.edit_message_text(
@@ -98,15 +112,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await context.bot.send_message(
                 chat_id=admin_id,
-                text=f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {message_type} - {user_messages[user_id]['category']}\n\n💬 Message:\n{combined_text}\n☦️\n🙏 Thank you!\nYour question/suggestion will be answered in upcoming discussions or sermons.\nHave a blessed time and stay tuned!\n\n———\n\n🙏 እናመሰግናለን!\nጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\nቡሩክ ጊዜ ይቆዩ እና ይከታትሉ!\n☦️"
+                text=f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {message_type} - {user_messages[user_id]['category']}\n\n💬 Message:\n{combined_text}\n\n"
+                      "☦️\n🙏 Thank you!\nYour question/suggestion will be answered in upcoming discussions or sermons.\nHave a blessed time and stay tuned!\n\n"
+                      "🙏 እናመሰግናለን!\nጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\nቡሩክ ጊዜ ይቆዩ እና ይከታትሉ!\n☦️"
             )
 
         user_messages.pop(user_id, None)
-
-        keyboard = [[InlineKeyboardButton("/Start", callback_data="restart")]]
+        keyboard = [[InlineKeyboardButton("Start", callback_data="intro")]]
         await context.bot.send_message(
             chat_id=user_id,
-            text="Press /Start to begin again:",
+            text="Press Start to begin again:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -114,35 +129,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cancel":
         await query.edit_message_text("We have cancelled your request. We are here if you need anything else.")
         user_messages.pop(user_id, None)
-        keyboard = [[InlineKeyboardButton("Question", callback_data="type_question")],
-                    [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]]
+        keyboard = [[InlineKeyboardButton("Start", callback_data="intro")]]
         await context.bot.send_message(
             chat_id=user_id,
-            text="Choose an option:",
+            text="Press Start to begin again:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # Back to start
-    elif data == "back_to_start" or data == "restart":
-        user_messages.pop(user_id, None)
-        keyboard = [[InlineKeyboardButton("Question", callback_data="type_question")],
-                    [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]]
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="Please choose an option:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-# --- Collect user text messages ---
+# --- Collect user messages ---
 async def collect_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    text = update.message.text
     if user_id in user_messages:
-        user_messages[user_id]["texts"].append(text)
+        user_messages[user_id]["texts"].append(update.message.text)
 
-# --- Main Function ---
+# --- Main ---
 def main():
-    TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
+    TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"  # Replace with your token
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect_message))
