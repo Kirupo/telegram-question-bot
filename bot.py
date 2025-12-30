@@ -14,8 +14,8 @@ from telegram.ext import (
 from datetime import datetime
 
 # ================= CONFIG =================
-TOKEN = "BOT_TOKEN_HERE"
-ADMIN_IDS = [123456789, 987654321]
+TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
+ADMIN_IDS = [7348815216, 1974614381]
 
 # ================= DATA =================
 QUESTION_CATEGORIES = [
