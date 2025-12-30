@@ -19,7 +19,6 @@ user_messages = {}
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    # Initialize storage
     user_messages[user_id] = {"type": "", "category": "", "texts": []}
 
     intro_text = (
@@ -33,12 +32,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "I am Korea_gbi_gubae_bot.\n"
         "Your messages are anonymous."
     )
-    await update.message.reply_text(intro_text)
-
     keyboard = [
         [InlineKeyboardButton("Question", callback_data="type_question")],
-        [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
+        [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")],
+        [InlineKeyboardButton("Cancel", callback_data="cancel")]
     ]
+    await update.message.reply_text(intro_text)
     await update.message.reply_text("Please choose an option:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 # --- Inline button handler ---
@@ -55,56 +54,60 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "type_question":
         user_messages[user_id]["type"] = "Question"
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"question_{opt}")] for opt in QUESTION_OPTIONS]
+        keyboard.append([InlineKeyboardButton("Back", callback_data="back"), InlineKeyboardButton("Cancel", callback_data="cancel")])
         await query.edit_message_text("Choose a question category:", reply_markup=InlineKeyboardMarkup(keyboard))
     elif data == "type_suggestion":
         user_messages[user_id]["type"] = "Suggestion"
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"suggestion_{opt}")] for opt in SUGGESTION_OPTIONS]
+        keyboard.append([InlineKeyboardButton("Back", callback_data="back"), InlineKeyboardButton("Cancel", callback_data="cancel")])
         await query.edit_message_text("Choose a suggestion category:", reply_markup=InlineKeyboardMarkup(keyboard))
-    
+
     # Suggestion category
     elif data.startswith("suggestion_"):
         category = data.split("_")[1]
         user_messages[user_id]["category"] = category
         keyboard = [
             [InlineKeyboardButton("Done", callback_data="done")],
-            [InlineKeyboardButton("Cancel", callback_data="cancel")]
+            [InlineKeyboardButton("Back", callback_data="back"), InlineKeyboardButton("Cancel", callback_data="cancel")]
         ]
         await query.edit_message_text(
-            f"Write your {category} suggestion below. Press Done when finished or Cancel to cancel.",
+            f"You can now send your {category} suggestion. Press Done when finished or Cancel to cancel.",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    
+
     # Question category
     elif data.startswith("question_"):
         category = data.split("_")[1]
         user_messages[user_id]["category"] = category
         keyboard = [
             [InlineKeyboardButton("Done", callback_data="done")],
-            [InlineKeyboardButton("Cancel", callback_data="cancel")]
+            [InlineKeyboardButton("Back", callback_data="back"), InlineKeyboardButton("Cancel", callback_data="cancel")]
         ]
         await query.edit_message_text(
-            f"Write your {category} question below. Press Done when finished or Cancel to cancel.",
+            f"You can now send your {category} question. Press Done when finished or Cancel to cancel.",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    
-    # Done
+
+    # Back button
+    elif data == "back":
+        keyboard = [
+            [InlineKeyboardButton("Question", callback_data="type_question")],
+            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")],
+            [InlineKeyboardButton("Cancel", callback_data="cancel")]
+        ]
+        user_messages[user_id]["category"] = ""
+        user_messages[user_id]["type"] = ""
+        await query.edit_message_text("Choose an option:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # Done button
     elif data == "done":
         combined_text = "\n".join(user_messages[user_id]["texts"])
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         message_type = user_messages[user_id]["type"]
 
         for admin_id in ADMIN_IDS:
-            await context.bot.forward_message(
-                chat_id=admin_id,
-                from_chat_id=user_id,
-                message_id=update.callback_query.message.message_id
-            )
-            await context.bot.send_message(
-                chat_id=admin_id,
-                text=f"📩 NEW MESSAGE\n🕒 Time: {timestamp}\n📂 Type: {message_type} - {user_messages[user_id]['category']}\n\n💬 Message:\n{combined_text}"
-            )
+            await context.bot.forward_message(chat_id=admin_id, from_chat_id=user_id, message_id=update.callback_query.message.message_id)
 
-        # Send outro to user
         outro_text = (
             "☦️\n🙏 Thank you!\n"
             "Your question/suggestion will be answered in upcoming discussions or sermons.\n"
@@ -114,21 +117,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
             "ቡሩክ ጊዜ ይቆዩ እና ይከታትሉ!\n☦️"
         )
-        keyboard_restart = [[InlineKeyboardButton("/start", callback_data="restart")]]
+        keyboard_restart = [[InlineKeyboardButton("Restart", callback_data="restart")]]
         await context.bot.send_message(chat_id=user_id, text=outro_text, reply_markup=InlineKeyboardMarkup(keyboard_restart))
         user_messages.pop(user_id, None)
 
-    # Cancel
+    # Cancel button
     elif data == "cancel":
         await query.edit_message_text("We have cancelled your request. We are here if you need anything else.")
         user_messages.pop(user_id, None)
-        keyboard = [
-            [InlineKeyboardButton("Question", callback_data="type_question")],
-            [InlineKeyboardButton("Suggestion", callback_data="type_suggestion")]
-        ]
-        await context.bot.send_message(user_id, "Choose an option:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    # Restart from outro inline button
+    # Restart from outro
     elif data == "restart":
         await start(update, context)
 
@@ -138,7 +136,7 @@ async def collect_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if user_id in user_messages:
         user_messages[user_id]["texts"].append(text)
-        # Do NOT send any confirmation message here (as requested)
+        # No confirmation messages
 
 # --- Main ---
 def main():
