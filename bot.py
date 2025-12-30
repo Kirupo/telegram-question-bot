@@ -6,12 +6,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 # ---------------------------- CONFIGURATION ----------------------------
 TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
 
-# Admin IDs: either single or multiple
-# Single admin:
-# ADMIN_IDS = [123456789]
-
-# Multiple admins:
-ADMIN_IDS = [7348815216, 1974614381]  # replace with your actual Telegram numeric IDs
+# Admin IDs: replace with your Telegram numeric IDs
+ADMIN_IDS = [7348815216, 1974614381]
 
 # Enable logging
 logging.basicConfig(
@@ -23,40 +19,55 @@ logger = logging.getLogger(__name__)
 class UserSession:
     """Tracks each user's session state"""
     def __init__(self):
-        self.stage = "start"
+        self.stage = "start"  # start, choosing_main, choosing_sub, writing, finished
         self.answers = []
-        self.current_option_index = 0
-        self.options = ["Sin", "Question", "Suggestion"]  # Example options
+        self.current_option = None
+        self.current_suboption = None
         self.last_message_id = None
+
+        # Main options
+        self.main_options = ["Question", "Suggestion"]
+
+        # Sub-options for Question
+        self.sub_options_question = [
+            "Prayer", "Confession", "Scripture/Bible verse", "Relationships",
+            "Orthodox practice", "Communion", "General theology", "Fasting",
+            "Sin", "Saints and intercession", "Saint Mary", "Others"
+        ]
+
+        # Sub-options for Suggestion
+        self.sub_options_suggestion = ["General", "Discussion"]
 
 sessions = {}
 
 # ---------------------------- INLINE KEYBOARD HELPERS ----------------------------
-def start_inline():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("Start", callback_data="start")]])
-
-def options_inline(session: UserSession):
-    keyboard = []
-    for idx, option in enumerate(session.options):
-        keyboard.append([InlineKeyboardButton(option, callback_data=f"option_{idx}")])
+def main_options_inline():
+    keyboard = [[InlineKeyboardButton(opt, callback_data=f"main_{opt.lower()}")] for opt in ["Question", "Suggestion"]]
     keyboard.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
     return InlineKeyboardMarkup(keyboard)
 
-def back_cancel_inline():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Back", callback_data="back"),
-         InlineKeyboardButton("Cancel", callback_data="cancel")]
-    ])
+def sub_options_inline(session: UserSession):
+    if session.current_option == "question":
+        options = session.sub_options_question
+    elif session.current_option == "suggestion":
+        options = session.sub_options_suggestion
+    else:
+        options = []
+
+    keyboard = [[InlineKeyboardButton(opt, callback_data=f"sub_{idx}")] for idx, opt in enumerate(options)]
+    keyboard.append([InlineKeyboardButton("Back", callback_data="back"),
+                     InlineKeyboardButton("Cancel", callback_data="cancel")])
+    return InlineKeyboardMarkup(keyboard)
 
 def restart_inline():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Restart", callback_data="restart")]])
 
 # ---------------------------- MESSAGE FORMATTING ----------------------------
-def format_message(user_text, msg_type):
+def format_message(user_text, main_type, sub_type):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return f"""📩 NEW MESSAGE
 🕒 Time: {now}
-📂 Type: {msg_type}
+📂 Type: {main_type} - {sub_type}
 
 💬 Message:
 {user_text}"""
@@ -64,8 +75,11 @@ def format_message(user_text, msg_type):
 # ---------------------------- HANDLERS ----------------------------
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    sessions[user_id] = UserSession()
+    if user_id not in sessions:
+        sessions[user_id] = UserSession()
     session = sessions[user_id]
+    session.stage = "choosing_main"
+    session.answers = []
 
     # Send intro message
     intro_text = (
@@ -77,10 +91,11 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "———\n\n"
         "👋 Hello!\n"
         "I am Korea_gbi_gubae_bot.\n"
-        "Your messages are anonymous."
+        "Your messages are anonymous.\n\n"
+        "Please choose an option to continue:"
     )
 
-    msg = await update.message.reply_text(intro_text, reply_markup=start_inline())
+    msg = await update.message.reply_text(intro_text, reply_markup=main_options_inline())
     session.last_message_id = msg.message_id
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -92,21 +107,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sessions[user_id] = UserSession()
     session = sessions[user_id]
 
-    # Delete last inline message for "disappearing" effect
-    if session.last_message_id:
+    # Delete last inline for clean interface except for intro
+    if session.last_message_id and session.stage not in ["start", "choosing_main"]:
         try:
             await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
         except:
             pass
 
     data = query.data
-
-    # ----------------- START -----------------
-    if data == "start" or data == "restart":
-        session.stage = "choosing"
-        msg = await context.bot.send_message(chat_id=user_id, text="Please choose an option:", reply_markup=options_inline(session))
-        session.last_message_id = msg.message_id
-        return
 
     # ----------------- CANCEL -----------------
     if data == "cancel":
@@ -127,30 +135,45 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.answers = []
         return
 
-    # ----------------- OPTIONS -----------------
-    if data.startswith("option_"):
-        idx = int(data.split("_")[1])
-        session.current_option_index = idx
+    # ----------------- RESTART -----------------
+    if data == "restart":
+        # Delete previous outro
+        if session.last_message_id:
+            try:
+                await context.bot.delete_message(chat_id=user_id, message_id=session.last_message_id)
+            except:
+                pass
+        await start_handler(update, context)
+        return
+
+    # ----------------- MAIN OPTIONS -----------------
+    if data.startswith("main_"):
+        session.current_option = data.split("_")[1]
+        session.stage = "choosing_sub"
+        msg = await context.bot.send_message(chat_id=user_id, text=f"You chose: {session.current_option.title()}\nPlease select a sub-option:", reply_markup=sub_options_inline(session))
+        session.last_message_id = msg.message_id
+        return
+
+    # ----------------- SUB OPTIONS -----------------
+    if data.startswith("sub_"):
+        sub_idx = int(data.split("_")[1])
+        if session.current_option == "question":
+            session.current_suboption = session.sub_options_question[sub_idx]
+        elif session.current_option == "suggestion":
+            session.current_suboption = session.sub_options_suggestion[sub_idx]
+
         session.stage = "writing"
-        option_name = session.options[idx]
-        msg = await context.bot.send_message(
-            chat_id=user_id,
-            text=f"You chose: {option_name}\nPlease write your message below:",
-            reply_markup=back_cancel_inline()
-        )
+        msg = await context.bot.send_message(chat_id=user_id, text=f"You chose sub-option: {session.current_suboption}\nPlease write your message below. Press Done when finished.", reply_markup=back_cancel_inline())
         session.last_message_id = msg.message_id
         return
 
     # ----------------- BACK -----------------
     if data == "back":
-        session.stage = "choosing"
-        msg = await context.bot.send_message(chat_id=user_id, text="Please choose an option:", reply_markup=options_inline(session))
+        session.stage = "choosing_main"
+        session.current_option = None
+        session.current_suboption = None
+        msg = await context.bot.send_message(chat_id=user_id, text="Please choose an option:", reply_markup=main_options_inline())
         session.last_message_id = msg.message_id
-        return
-
-    # ----------------- RESTART -----------------
-    if data == "restart":
-        await start_handler(update, context)
         return
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -163,9 +186,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if session.stage == "writing":
         # Send to admin(s) in requested format
-        option_name = session.options[session.current_option_index]
-        formatted_message = format_message(text, option_name)
-
+        formatted_message = format_message(text, session.current_option.title(), session.current_suboption)
         for admin_id in ADMIN_IDS:
             await context.bot.send_message(chat_id=admin_id, text=formatted_message)
 
