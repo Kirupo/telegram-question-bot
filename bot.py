@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 
 # =========================================================
-# CONSTANTS
+# STATES
 # =========================================================
 STATE_MAIN = "main"
 STATE_Q_SUB = "question_sub"
@@ -41,10 +41,11 @@ class QuestionBot:
         pass
 
     # -----------------------------------------------------
-    # START / RESTART
+    # START / INTRO
     # -----------------------------------------------------
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
+        context.user_data["messages"] = []
 
         intro_text = (
             "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
@@ -62,41 +63,36 @@ class QuestionBot:
         keyboard = [
             [InlineKeyboardButton("❓ Question", callback_data="question")],
             [InlineKeyboardButton("💡 Suggestion", callback_data="suggestion")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
         ]
 
-        message = await update.message.reply_text(
+        intro_message = await update.message.reply_text(
             intro_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        context.user_data["intro_message_id"] = message.message_id
+        context.user_data["intro_message_id"] = intro_message.message_id
         context.user_data["state"] = STATE_MAIN
 
     # -----------------------------------------------------
-    # MAIN MENU HANDLER
+    # MAIN CHOICE HANDLER
     # -----------------------------------------------------
     async def main_choice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
+        choice = query.data
 
-        context.user_data["type"] = query.data
-        context.user_data["messages"] = []
-
-        # Delete intro message if exists
-        intro_id = context.user_data.get("intro_message_id")
-        if intro_id:
-            try:
-                await query.message.delete()
-            except:
-                pass
-
-        if query.data == "question":
+        if choice == "question":
+            context.user_data["type"] = "question"
             await self.show_question_subs(query, context)
-        else:
+        elif choice == "suggestion":
+            context.user_data["type"] = "suggestion"
             await self.show_suggestion_subs(query, context)
+        elif choice == "cancel":
+            await self.show_cancel_message(query, context)
 
     # -----------------------------------------------------
-    # QUESTION SUBS
+    # SHOW QUESTION SUBS
     # -----------------------------------------------------
     async def show_question_subs(self, query, context):
         keyboard = [
@@ -120,11 +116,10 @@ class QuestionBot:
             "Choose question category:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
         context.user_data["state"] = STATE_Q_SUB
 
     # -----------------------------------------------------
-    # SUGGESTION SUBS
+    # SHOW SUGGESTION SUBS
     # -----------------------------------------------------
     async def show_suggestion_subs(self, query, context):
         keyboard = [
@@ -138,7 +133,6 @@ class QuestionBot:
             "Choose suggestion category:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
         context.user_data["state"] = STATE_S_SUB
 
     # -----------------------------------------------------
@@ -147,7 +141,6 @@ class QuestionBot:
     async def sub_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-
         context.user_data["sub"] = query.data
 
         keyboard = [
@@ -162,20 +155,17 @@ class QuestionBot:
             "Press DONE when finished.",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
         context.user_data["state"] = STATE_WRITING
 
     # -----------------------------------------------------
-    # COLLECT USER TEXT
+    # COLLECT USER MESSAGES
     # -----------------------------------------------------
     async def collect_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if context.user_data.get("state") != STATE_WRITING:
-            return
-
-        context.user_data["messages"].append(update.message.text)
+        if context.user_data.get("state") == STATE_WRITING:
+            context.user_data["messages"].append(update.message.text)
 
     # -----------------------------------------------------
-    # DONE → SEND TO ADMINS + SHOW NEW OUTRO
+    # DONE → SEND TO ADMINS + THANK YOU MESSAGE
     # -----------------------------------------------------
     async def done(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -199,8 +189,7 @@ class QuestionBot:
         for admin_id in ADMIN_IDS:
             await context.bot.send_message(admin_id, final_message)
 
-        # UPDATED Outro Text
-        outro_text = (
+        thank_you_text = (
             "☦️\n"
             "🙏 Thank you!\n"
             "Your question/suggestion will be answered in upcoming discussions or sermons.\n\n"
@@ -212,15 +201,29 @@ class QuestionBot:
 
         keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
 
-        outro_msg = await query.edit_message_text(
-            outro_text,
+        await query.edit_message_text(
+            thank_you_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        context.user_data["outro_message_id"] = outro_msg.message_id
+    # -----------------------------------------------------
+    # CANCEL → SHOW CANCEL MESSAGE
+    # -----------------------------------------------------
+    async def show_cancel_message(self, query, context):
+        cancel_text = (
+            "Your message has been cancelled.\n"
+            "We will be here waiting if you have any questions or suggestions.\n"
+            "Have a blessed time!"
+        )
+        keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
+
+        await query.edit_message_text(
+            cancel_text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
     # -----------------------------------------------------
-    # BACK HANDLING
+    # BACK HANDLER
     # -----------------------------------------------------
     async def back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -228,41 +231,18 @@ class QuestionBot:
 
         if query.data == "back_main":
             await self.start(update, context)
-        else:
-            if context.user_data["type"] == "question":
+        elif query.data == "back_sub":
+            if context.user_data.get("type") == "question":
                 await self.show_question_subs(query, context)
             else:
                 await self.show_suggestion_subs(query, context)
 
     # -----------------------------------------------------
-    # CANCEL
-    # -----------------------------------------------------
-    async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-
-        keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
-
-        await query.edit_message_text(
-            "❌ Cancelled.\nThank you for visiting.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-    # -----------------------------------------------------
-    # RESTART
+    # RESTART HANDLER
     # -----------------------------------------------------
     async def restart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-
-        # Delete outro message if exists
-        outro_id = context.user_data.get("outro_message_id")
-        if outro_id:
-            try:
-                await query.message.delete()
-            except:
-                pass
-
         context.user_data.clear()
         await self.start(update, context)
 
@@ -277,13 +257,21 @@ def main():
 
     app.add_handler(CommandHandler("start", bot.start))
 
-    app.add_handler(CallbackQueryHandler(bot.main_choice, pattern="^(question|suggestion)$"))
+    # Main choice
+    app.add_handler(CallbackQueryHandler(bot.main_choice, pattern="^(question|suggestion|cancel)$"))
+
+    # Subcategories
     app.add_handler(CallbackQueryHandler(bot.sub_selected, pattern="^(q_|s_)"))
+
+    # Done, Back, Restart
     app.add_handler(CallbackQueryHandler(bot.done, pattern="^done$"))
     app.add_handler(CallbackQueryHandler(bot.back, pattern="^back_"))
-    app.add_handler(CallbackQueryHandler(bot.cancel, pattern="^cancel$"))
     app.add_handler(CallbackQueryHandler(bot.restart, pattern="^restart$"))
 
+    # Cancel
+    app.add_handler(CallbackQueryHandler(bot.show_cancel_message, pattern="^cancel$"))
+
+    # Collect text
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.collect_text))
 
     print("✅ Bot running")
