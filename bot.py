@@ -1,11 +1,7 @@
 import logging
 from datetime import datetime
 
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -51,8 +47,16 @@ class QuestionBot:
         context.user_data.clear()
 
         intro_text = (
-            "👋 Welcome!\n\n"
-            "Please choose what you want to send."
+            "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
+            "👋 ሰላም!\n"
+            "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
+            "እነዚያ መልዕክቶች ስም-አልባ ናቸው እና\n"
+            "ማንነትህ በአስተዳዳሪዎች አይታይም።\n\n"
+            "———\n\n"
+            "👋 Hello!\n"
+            "I am Korea_gbi_gubae_bot.\n"
+            "Your messages are anonymous.\n\n"
+            "Please choose an option to continue:"
         )
 
         keyboard = [
@@ -77,6 +81,14 @@ class QuestionBot:
 
         context.user_data["type"] = query.data
         context.user_data["messages"] = []
+
+        # Delete intro message if exists
+        intro_id = context.user_data.get("intro_message_id")
+        if intro_id:
+            try:
+                await query.message.delete()
+            except:
+                pass
 
         if query.data == "question":
             await self.show_question_subs(query, context)
@@ -163,11 +175,15 @@ class QuestionBot:
         context.user_data["messages"].append(update.message.text)
 
     # -----------------------------------------------------
-    # DONE → SEND TO ADMINS
+    # DONE → SEND TO ADMINS + SHOW NEW OUTRO
     # -----------------------------------------------------
     async def done(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
+
+        if not context.user_data.get("messages"):
+            await query.answer("❌ You haven't typed any message yet!", show_alert=True)
+            return
 
         combined_text = "\n".join(context.user_data["messages"])
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -183,14 +199,25 @@ class QuestionBot:
         for admin_id in ADMIN_IDS:
             await context.bot.send_message(admin_id, final_message)
 
-        keyboard = [
-            [InlineKeyboardButton("🔁 Restart", callback_data="restart")]
-        ]
+        # UPDATED Outro Text
+        outro_text = (
+            "☦️\n"
+            "🙏 Thank you!\n"
+            "Your question/suggestion will be answered in upcoming discussions or sermons.\n\n"
+            "———\n\n"
+            "🙏 እናመሰግናለን!\n"
+            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
+            "☦️"
+        )
 
-        await query.edit_message_text(
-            "✅ Message sent successfully.\nThank you!",
+        keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
+
+        outro_msg = await query.edit_message_text(
+            outro_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
+        context.user_data["outro_message_id"] = outro_msg.message_id
 
     # -----------------------------------------------------
     # BACK HANDLING
@@ -214,9 +241,7 @@ class QuestionBot:
         query = update.callback_query
         await query.answer()
 
-        keyboard = [
-            [InlineKeyboardButton("🔁 Restart", callback_data="restart")]
-        ]
+        keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
 
         await query.edit_message_text(
             "❌ Cancelled.\nThank you for visiting.",
@@ -224,18 +249,21 @@ class QuestionBot:
         )
 
     # -----------------------------------------------------
-    # RESTART (FIXED)
+    # RESTART
     # -----------------------------------------------------
     async def restart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
 
+        # Delete outro message if exists
+        outro_id = context.user_data.get("outro_message_id")
+        if outro_id:
+            try:
+                await query.message.delete()
+            except:
+                pass
+
         context.user_data.clear()
-
-        await query.edit_message_text(
-            "🔄 Restarting..."
-        )
-
         await self.start(update, context)
 
 
