@@ -12,15 +12,13 @@ from telegram.ext import (
 )
 
 # ================= ADMIN IDS =================
-ADMIN_IDS = [7348815216, 1974614381]  # replace with real admin IDs
+ADMIN_IDS = [7348815216, 1974614381]
 
 # ================= LOGGING ===================
 logging.basicConfig(level=logging.INFO)
 
 # ================= STATES ====================
 STATE_MAIN = "main"
-STATE_Q_SUB = "question_sub"
-STATE_S_SUB = "suggestion_sub"
 STATE_WRITING = "writing"
 
 # ================= BOT =======================
@@ -34,8 +32,9 @@ class QuestionBot:
         text = (
             "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን ☦️\n\n"
             "👋 Hello!\n"
+            "I am Korea_gbi_gubae_bot.\n"
             "Your messages are anonymous.\n\n"
-            "Please choose an option:"
+            "Please choose an option to continue:"
         )
 
         keyboard = [
@@ -45,7 +44,8 @@ class QuestionBot:
         ]
 
         await update.message.reply_text(
-            text, reply_markup=InlineKeyboardMarkup(keyboard)
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
         context.user_data["state"] = STATE_MAIN
@@ -58,19 +58,28 @@ class QuestionBot:
         if query.data == "question":
             context.user_data["type"] = "Question"
             await self.question_subs(query)
+
         elif query.data == "suggestion":
             context.user_data["type"] = "Suggestion"
             await self.suggestion_subs(query)
+
         else:
             await self.cancel_message(query)
 
-    # ---------- QUESTION SUBS ----------
+    # ---------- QUESTION SUBS (UPDATED) ----------
     async def question_subs(self, query):
         keyboard = [
             [InlineKeyboardButton("🙏 Prayer", callback_data="Prayer")],
             [InlineKeyboardButton("✝️ Confession", callback_data="Confession")],
-            [InlineKeyboardButton("📖 Scripture", callback_data="Scripture")],
-            [InlineKeyboardButton("❤️ Relationship", callback_data="Relationship")],
+            [InlineKeyboardButton("📖 Scripture / Bible Verse", callback_data="Scripture / Bible Verse")],
+            [InlineKeyboardButton("❤️ Relationships", callback_data="Relationships")],
+            [InlineKeyboardButton("⛪ Orthodox Practice", callback_data="Orthodox Practice")],
+            [InlineKeyboardButton("🍞 Communion", callback_data="Communion")],
+            [InlineKeyboardButton("📚 General Theology", callback_data="General Theology")],
+            [InlineKeyboardButton("🥗 Fasting", callback_data="Fasting")],
+            [InlineKeyboardButton("⚠️ Sin", callback_data="Sin")],
+            [InlineKeyboardButton("👼 Saints & Intercession", callback_data="Saints & Intercession")],
+            [InlineKeyboardButton("🌸 Saint Mary", callback_data="Saint Mary")],
             [InlineKeyboardButton("📌 Others", callback_data="Others")],
             [InlineKeyboardButton("⬅️ Back", callback_data="back_main")],
             [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
@@ -127,10 +136,6 @@ class QuestionBot:
         query = update.callback_query
         await query.answer()
 
-        if not context.user_data["messages"]:
-            await query.answer("No message written!", show_alert=True)
-            return
-
         message_text = "\n".join(context.user_data["messages"])
         time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -147,16 +152,20 @@ class QuestionBot:
             await context.bot.send_message(admin, admin_message)
 
         await query.edit_message_text(
-            "☦️ Thank you!\n"
-            "Your message has been received.\n"
-            "May God bless you."
+            "☦️\n"
+            "🙏 Thank you!\n"
+            "Your question/suggestion will be answered in upcoming discussions or sermons.\n\n"
+            "———\n\n"
+            "🙏 እናመሰግናለን!\n"
+            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
+            "☦️"
         )
 
     # ---------- CANCEL ----------
     async def cancel_message(self, query):
         await query.edit_message_text(
             "Your message has been cancelled.\n"
-            "We will be here if you need us.\n"
+            "We will be here waiting if you have any question or suggestion.\n"
             "Have a blessed time ☦️"
         )
 
@@ -180,7 +189,7 @@ def main():
 
     app.add_handler(CommandHandler("start", bot.start))
     app.add_handler(CallbackQueryHandler(bot.main_choice, pattern="^(question|suggestion|cancel)$"))
-    app.add_handler(CallbackQueryHandler(bot.sub_selected, pattern="^(Prayer|Confession|Scripture|Relationship|Others|General|Discussion)$"))
+    app.add_handler(CallbackQueryHandler(bot.sub_selected))
     app.add_handler(CallbackQueryHandler(bot.done, pattern="^done$"))
     app.add_handler(CallbackQueryHandler(bot.back, pattern="^back_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.collect_text))
