@@ -18,8 +18,37 @@ ADMIN_IDS = [7348815216, 1974614381]
 logging.basicConfig(level=logging.INFO)
 
 # ================= STATES ====================
-STATE_MAIN = "main"
 STATE_WRITING = "writing"
+
+# ================= TEXT BLOCKS =================
+
+INTRO_TEXT = (
+    "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን ☦️\n\n"
+    "👋 ሰላም!\n"
+    "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
+    "መልዕክቶችዎ ስም-አልባ ናቸው፣ ማንነትዎ ለአስተዳዳሪዎች አይታይም።\n\n"
+    "———\n\n"
+    "👋 Hello!\n"
+    "I am Korea_gbi_gubae_bot.\n"
+    "Your messages are anonymous.\n\n"
+    "Please choose an option to continue:"
+)
+
+OUTRO_TEXT = (
+    "☦️\n"
+    "🙏 Thank you!\n"
+    "Your question/suggestion will be answered in upcoming discussions or sermons.\n\n"
+    "———\n\n"
+    "🙏 እናመሰግናለን!\n"
+    "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
+    "☦️"
+)
+
+CANCEL_TEXT = (
+    "❌ Your message has been cancelled.\n\n"
+    "🙏 We will be here waiting if you have any question or suggestion.\n"
+    "Have a blessed time ☦️"
+)
 
 # ================= BOT =======================
 class QuestionBot:
@@ -29,14 +58,6 @@ class QuestionBot:
         context.user_data.clear()
         context.user_data["messages"] = []
 
-        text = (
-            "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን ☦️\n\n"
-            "👋 Hello!\n"
-            "I am Korea_gbi_gubae_bot.\n"
-            "Your messages are anonymous.\n\n"
-            "Please choose an option to continue:"
-        )
-
         keyboard = [
             [InlineKeyboardButton("❓ Question", callback_data="question")],
             [InlineKeyboardButton("💡 Suggestion", callback_data="suggestion")],
@@ -44,11 +65,9 @@ class QuestionBot:
         ]
 
         await update.message.reply_text(
-            text,
+            INTRO_TEXT,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
-        context.user_data["state"] = STATE_MAIN
 
     # ---------- MAIN CHOICE ----------
     async def main_choice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -64,9 +83,9 @@ class QuestionBot:
             await self.suggestion_subs(query)
 
         else:
-            await self.cancel_message(query)
+            await query.edit_message_text(CANCEL_TEXT)
 
-    # ---------- QUESTION SUBS (UPDATED) ----------
+    # ---------- QUESTION SUBS ----------
     async def question_subs(self, query):
         keyboard = [
             [InlineKeyboardButton("🙏 Prayer", callback_data="Prayer")],
@@ -104,27 +123,31 @@ class QuestionBot:
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # ---------- SUB SELECT ----------
+    # ---------- SUB SELECT (SAFE) ----------
     async def sub_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
 
         context.user_data["category"] = query.data
+        context.user_data["state"] = STATE_WRITING
+
+        # Safely remove old keyboard
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except:
+            pass
 
         keyboard = [
             [InlineKeyboardButton("✅ Done", callback_data="done")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back_sub")],
             [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
         ]
 
-        await query.edit_message_text(
+        await query.message.reply_text(
             "✍️ Write your message.\n"
             "You may send multiple messages.\n"
             "Press DONE when finished.",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
-        context.user_data["state"] = STATE_WRITING
 
     # ---------- COLLECT TEXT ----------
     async def collect_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,11 +160,11 @@ class QuestionBot:
         await query.answer()
 
         message_text = "\n".join(context.user_data["messages"])
-        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         admin_message = (
             "📩 NEW MESSAGE\n"
-            f"🕒 Time: {time_now}\n"
+            f"🕒 Time: {now}\n"
             f"📂 Type: {context.user_data['type']}\n"
             f"📌 Category: {context.user_data['category']}\n\n"
             "💬 Message:\n"
@@ -151,36 +174,13 @@ class QuestionBot:
         for admin in ADMIN_IDS:
             await context.bot.send_message(admin, admin_message)
 
-        await query.edit_message_text(
-            "☦️\n"
-            "🙏 Thank you!\n"
-            "Your question/suggestion will be answered in upcoming discussions or sermons.\n\n"
-            "———\n\n"
-            "🙏 እናመሰግናለን!\n"
-            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
-            "☦️"
-        )
-
-    # ---------- CANCEL ----------
-    async def cancel_message(self, query):
-        await query.edit_message_text(
-            "Your message has been cancelled.\n"
-            "We will be here waiting if you have any question or suggestion.\n"
-            "Have a blessed time ☦️"
-        )
+        await query.edit_message_text(OUTRO_TEXT)
 
     # ---------- BACK ----------
     async def back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-
-        if query.data == "back_main":
-            await self.start(update, context)
-        elif query.data == "back_sub":
-            if context.user_data["type"] == "Question":
-                await self.question_subs(query)
-            else:
-                await self.suggestion_subs(query)
+        await query.message.reply_text(INTRO_TEXT)
 
 # ================= MAIN ======================
 def main():
@@ -191,7 +191,6 @@ def main():
     app.add_handler(CallbackQueryHandler(bot.main_choice, pattern="^(question|suggestion|cancel)$"))
     app.add_handler(CallbackQueryHandler(bot.sub_selected))
     app.add_handler(CallbackQueryHandler(bot.done, pattern="^done$"))
-    app.add_handler(CallbackQueryHandler(bot.back, pattern="^back_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.collect_text))
 
     print("✅ Bot running...")
