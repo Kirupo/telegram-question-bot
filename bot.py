@@ -11,53 +11,31 @@ from telegram.ext import (
     filters,
 )
 
-# =========================================================
-# 🔐 ADMINS IDS (ADD YOUR TELEGRAM USER IDS HERE)
-# =========================================================
-ADMIN_IDS = [7348815216, 1974614381]
+# ================= ADMIN IDS =================
+ADMIN_IDS = [7348815216, 1974614381]  # replace with real admin IDs
 
-# =========================================================
-# LOGGING
-# =========================================================
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+# ================= LOGGING ===================
+logging.basicConfig(level=logging.INFO)
 
-# =========================================================
-# STATES
-# =========================================================
+# ================= STATES ====================
 STATE_MAIN = "main"
 STATE_Q_SUB = "question_sub"
 STATE_S_SUB = "suggestion_sub"
 STATE_WRITING = "writing"
 
-# =========================================================
-# BOT CLASS
-# =========================================================
+# ================= BOT =======================
 class QuestionBot:
 
-    def __init__(self):
-        pass
-
-    # -----------------------------------------------------
-    # START / INTRO
-    # -----------------------------------------------------
+    # ---------- START ----------
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         context.user_data["messages"] = []
 
-        intro_text = (
-            "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን፡፡☦️\n\n"
-            "👋 ሰላም!\n"
-            "እኔ የኮሪያ_ጊቢ_ጉባኤ_ቦት ነኝ።\n"
-            "እነዚያ መልዕክቶች ስም-አልባ ናቸው እና\n"
-            "ማንነትህ በአስተዳዳሪዎች አይታይም።\n\n"
-            "———\n\n"
+        text = (
+            "☦️ በስመአብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን ☦️\n\n"
             "👋 Hello!\n"
-            "I am Korea_gbi_gubae_bot.\n"
             "Your messages are anonymous.\n\n"
-            "Please choose an option to continue:"
+            "Please choose an option:"
         )
 
         keyboard = [
@@ -66,82 +44,63 @@ class QuestionBot:
             [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
         ]
 
-        intro_message = await update.message.reply_text(
-            intro_text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            text, reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        context.user_data["intro_message_id"] = intro_message.message_id
         context.user_data["state"] = STATE_MAIN
 
-    # -----------------------------------------------------
-    # MAIN CHOICE HANDLER
-    # -----------------------------------------------------
+    # ---------- MAIN CHOICE ----------
     async def main_choice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-        choice = query.data
 
-        if choice == "question":
-            context.user_data["type"] = "question"
-            await self.show_question_subs(query, context)
-        elif choice == "suggestion":
-            context.user_data["type"] = "suggestion"
-            await self.show_suggestion_subs(query, context)
-        elif choice == "cancel":
-            await self.show_cancel_message(query, context)
+        if query.data == "question":
+            context.user_data["type"] = "Question"
+            await self.question_subs(query)
+        elif query.data == "suggestion":
+            context.user_data["type"] = "Suggestion"
+            await self.suggestion_subs(query)
+        else:
+            await self.cancel_message(query)
 
-    # -----------------------------------------------------
-    # SHOW QUESTION SUBS
-    # -----------------------------------------------------
-    async def show_question_subs(self, query, context):
+    # ---------- QUESTION SUBS ----------
+    async def question_subs(self, query):
         keyboard = [
-            [InlineKeyboardButton("🙏 Prayer", callback_data="q_prayer")],
-            [InlineKeyboardButton("✝️ Confession", callback_data="q_confession")],
-            [InlineKeyboardButton("📖 Scripture / Bible Verse", callback_data="q_scripture")],
-            [InlineKeyboardButton("❤️ Relationships", callback_data="q_relationships")],
-            [InlineKeyboardButton("⛪ Orthodox Practice", callback_data="q_practice")],
-            [InlineKeyboardButton("🍞 Communion", callback_data="q_communion")],
-            [InlineKeyboardButton("📚 General Theology", callback_data="q_theology")],
-            [InlineKeyboardButton("🥗 Fasting", callback_data="q_fasting")],
-            [InlineKeyboardButton("⚠️ Sin", callback_data="q_sin")],
-            [InlineKeyboardButton("👼 Saints & Intercession", callback_data="q_saints")],
-            [InlineKeyboardButton("🌸 Saint Mary", callback_data="q_mary")],
-            [InlineKeyboardButton("📌 Others", callback_data="q_others")],
+            [InlineKeyboardButton("🙏 Prayer", callback_data="Prayer")],
+            [InlineKeyboardButton("✝️ Confession", callback_data="Confession")],
+            [InlineKeyboardButton("📖 Scripture", callback_data="Scripture")],
+            [InlineKeyboardButton("❤️ Relationship", callback_data="Relationship")],
+            [InlineKeyboardButton("📌 Others", callback_data="Others")],
             [InlineKeyboardButton("⬅️ Back", callback_data="back_main")],
             [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
         ]
 
         await query.edit_message_text(
-            "Choose question category:",
+            "Choose a question category:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        context.user_data["state"] = STATE_Q_SUB
 
-    # -----------------------------------------------------
-    # SHOW SUGGESTION SUBS
-    # -----------------------------------------------------
-    async def show_suggestion_subs(self, query, context):
+    # ---------- SUGGESTION SUBS ----------
+    async def suggestion_subs(self, query):
         keyboard = [
-            [InlineKeyboardButton("💡 General", callback_data="s_general")],
-            [InlineKeyboardButton("💬 Discussion", callback_data="s_discussion")],
+            [InlineKeyboardButton("💡 General", callback_data="General")],
+            [InlineKeyboardButton("💬 Discussion", callback_data="Discussion")],
             [InlineKeyboardButton("⬅️ Back", callback_data="back_main")],
             [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
         ]
 
         await query.edit_message_text(
-            "Choose suggestion category:",
+            "Choose a suggestion category:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        context.user_data["state"] = STATE_S_SUB
 
-    # -----------------------------------------------------
-    # SUB SELECTED → WRITING MODE
-    # -----------------------------------------------------
+    # ---------- SUB SELECT ----------
     async def sub_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-        context.user_data["sub"] = query.data
+
+        context.user_data["category"] = query.data
 
         keyboard = [
             [InlineKeyboardButton("✅ Done", callback_data="done")],
@@ -151,80 +110,57 @@ class QuestionBot:
 
         await query.edit_message_text(
             "✍️ Write your message.\n"
-            "You can send as many messages as you want.\n"
+            "You may send multiple messages.\n"
             "Press DONE when finished.",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
         context.user_data["state"] = STATE_WRITING
 
-    # -----------------------------------------------------
-    # COLLECT USER MESSAGES
-    # -----------------------------------------------------
+    # ---------- COLLECT TEXT ----------
     async def collect_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data.get("state") == STATE_WRITING:
             context.user_data["messages"].append(update.message.text)
 
-    # -----------------------------------------------------
-    # DONE → SEND TO ADMINS + THANK YOU MESSAGE
-    # -----------------------------------------------------
+    # ---------- DONE ----------
     async def done(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
 
-        if not context.user_data.get("messages"):
-            await query.answer("❌ You haven't typed any message yet!", show_alert=True)
+        if not context.user_data["messages"]:
+            await query.answer("No message written!", show_alert=True)
             return
 
-        combined_text = "\n".join(context.user_data["messages"])
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        message_text = "\n".join(context.user_data["messages"])
+        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        final_message = (
+        admin_message = (
             "📩 NEW MESSAGE\n"
-            f"🕒 Time: {now}\n"
-            f"📂 Type: {context.user_data['type'].capitalize()}\n\n"
+            f"🕒 Time: {time_now}\n"
+            f"📂 Type: {context.user_data['type']}\n"
+            f"📌 Category: {context.user_data['category']}\n\n"
             "💬 Message:\n"
-            f"{combined_text}"
+            f"{message_text}"
         )
 
-        for admin_id in ADMIN_IDS:
-            await context.bot.send_message(admin_id, final_message)
-
-        thank_you_text = (
-            "☦️\n"
-            "🙏 Thank you!\n"
-            "Your question/suggestion will be answered in upcoming discussions or sermons.\n\n"
-            "———\n\n"
-            "🙏 እናመሰግናለን!\n"
-            "ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።\n"
-            "☦️"
-        )
-
-        keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
+        for admin in ADMIN_IDS:
+            await context.bot.send_message(admin, admin_message)
 
         await query.edit_message_text(
-            thank_you_text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            "☦️ Thank you!\n"
+            "Your message has been received.\n"
+            "May God bless you."
         )
 
-    # -----------------------------------------------------
-    # CANCEL → SHOW CANCEL MESSAGE
-    # -----------------------------------------------------
-    async def show_cancel_message(self, query, context):
-        cancel_text = (
+    # ---------- CANCEL ----------
+    async def cancel_message(self, query):
+        await query.edit_message_text(
             "Your message has been cancelled.\n"
-            "We will be here waiting if you have any questions or suggestions.\n"
-            "Have a blessed time!"
-        )
-        keyboard = [[InlineKeyboardButton("🔁 Restart", callback_data="restart")]]
-
-        await query.edit_message_text(
-            cancel_text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            "We will be here if you need us.\n"
+            "Have a blessed time ☦️"
         )
 
-    # -----------------------------------------------------
-    # BACK HANDLER
-    # -----------------------------------------------------
+    # ---------- BACK ----------
     async def back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
@@ -232,51 +168,25 @@ class QuestionBot:
         if query.data == "back_main":
             await self.start(update, context)
         elif query.data == "back_sub":
-            if context.user_data.get("type") == "question":
-                await self.show_question_subs(query, context)
+            if context.user_data["type"] == "Question":
+                await self.question_subs(query)
             else:
-                await self.show_suggestion_subs(query, context)
+                await self.suggestion_subs(query)
 
-    # -----------------------------------------------------
-    # RESTART HANDLER
-    # -----------------------------------------------------
-    async def restart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-        context.user_data.clear()
-        await self.start(update, context)
-
-
-# =========================================================
-# MAIN
-# =========================================================
+# ================= MAIN ======================
 def main():
     app = Application.builder().token("8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY").build()
-
     bot = QuestionBot()
 
     app.add_handler(CommandHandler("start", bot.start))
-
-    # Main choice
     app.add_handler(CallbackQueryHandler(bot.main_choice, pattern="^(question|suggestion|cancel)$"))
-
-    # Subcategories
-    app.add_handler(CallbackQueryHandler(bot.sub_selected, pattern="^(q_|s_)"))
-
-    # Done, Back, Restart
+    app.add_handler(CallbackQueryHandler(bot.sub_selected, pattern="^(Prayer|Confession|Scripture|Relationship|Others|General|Discussion)$"))
     app.add_handler(CallbackQueryHandler(bot.done, pattern="^done$"))
     app.add_handler(CallbackQueryHandler(bot.back, pattern="^back_"))
-    app.add_handler(CallbackQueryHandler(bot.restart, pattern="^restart$"))
-
-    # Cancel
-    app.add_handler(CallbackQueryHandler(bot.show_cancel_message, pattern="^cancel$"))
-
-    # Collect text
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.collect_text))
 
-    print("✅ Bot running")
+    print("✅ Bot running...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
