@@ -17,8 +17,8 @@ from telegram.ext import (
 )
 
 # ====================== CONFIG ======================
-TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
-ADMIN_IDS = [7348815216, 1974614381]  # Replace with real admin IDs
+TOKEN = ""
+ADMIN_IDS = []  # Replace with real admin IDs
 
 # Setup logging for Termux
 logging.basicConfig(
