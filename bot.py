@@ -17,8 +17,8 @@ from telegram.ext import (
 )
 
 # ====================== CONFIG ======================
-TOKEN = ""
-ADMIN_IDS = []  # Replace with real admin IDs
+TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
+ADMIN_IDS = [7348815216, 1974614381]  # Replace with real admin IDs
 
 # Setup logging for Termux
 logging.basicConfig(
@@ -55,6 +55,7 @@ Your question/suggestion will be answered in upcoming discussions or sermons.
 
 🙏 እናመሰግናለን!
 ጥያቄዎ/አስተያየትዎ በሚቀጥሉ ውይይቶች ወይም ስብከቶች ይመለሳል።
+You can start again anytime with /start
 ☦️"""
 
 CANCEL_MSG = """❌ Operation cancelled.
