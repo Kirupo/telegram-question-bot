@@ -268,7 +268,8 @@ def main():
         print("❌ Press Ctrl+C to stop")
         print("\n📊 Logs are saved to 'bot.log'")
 
-        asyncio.run(start_bot(app))
+        # Run polling safely
+        app.run_polling(timeout=60)
 
     except Exception as e:
         logger.error(f"Bot crashed: {e}")
