@@ -256,13 +256,9 @@ def main():
     print("────────────────────────────────────")
 
     try:
-        app = (
-          Application.builder()
-         .token(TOKEN)
-         .get_updates_request_kwargs({'timeout': 30})
-         .build()
-        )
+        app = Application.builder().token(TOKEN).build()
 
+        # Handlers
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CallbackQueryHandler(button_handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect_message))
