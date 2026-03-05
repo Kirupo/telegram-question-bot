@@ -69,10 +69,10 @@ God bless! ☦️"""
 # ====================== KEYBOARD FUNCTIONS ======================
 
 def menu_keyboard():
-return InlineKeyboardMarkup([
-[InlineKeyboardButton("❓ Question", callback_data="question")],
-[InlineKeyboardButton("💡 Suggestion", callback_data="suggestion")]
-])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Ask Question", callback_data="ask")],
+        [InlineKeyboardButton("Help", callback_data="help")]
+    ])
 
 def question_keyboard():
 return InlineKeyboardMarkup([
