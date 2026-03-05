@@ -257,10 +257,10 @@ def main():
 
     try:
         app = (
-            Application.builder()
-            .token(TOKEN)
-            .get_updaes_equest_kwags({'timeout':30})\
-            .build()
+          Application.builder()
+         .token(TOKEN)
+         .get_updates_request_kwargs({'timeout': 30})
+         .build()
         )
 
         app.add_handler(CommandHandler("start", start))
