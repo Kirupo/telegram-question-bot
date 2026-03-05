@@ -5,15 +5,16 @@ Simple, reliable version with better error handling
 
 import logging
 import asyncio
+import time
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-Application,
-CommandHandler,
-CallbackQueryHandler,
-MessageHandler,
-ContextTypes,
-filters,
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
 )
 
 # ====================== CONFIG ======================
@@ -22,14 +23,13 @@ TOKEN = "8229992007:AAFrMlg0iI7mGC8acDvLi3Zy2CaVsVIfDQY"
 ADMIN_IDS = [7348815216, 1974614381]
 
 # Setup logging for Termux
-
 logging.basicConfig(
-format='%(asctime)s - %(levelname)s - %(message)s',
-level=logging.INFO,
-handlers=[
-logging.StreamHandler(),
-logging.FileHandler('bot.log')
-]
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO,
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log')
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -68,12 +68,11 @@ God bless! ☦️"""
 
 # ====================== KEYBOARD FUNCTIONS ======================
 
-def menu_keyboard():
+def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Ask Question", callback_data="ask")],
-        [InlineKeyboardButton("Help", callback_data="help")]
+        [InlineKeyboardButton("Ask Question", callback_data="question")],
+        [InlineKeyboardButton("Make Suggestion", callback_data="suggestion")]
     ])
-
 
 def question_keyboard():
     return InlineKeyboardMarkup([
@@ -93,7 +92,6 @@ def question_keyboard():
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
     ])
 
-
 def suggestion_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📝 General", callback_data="s_general")],
@@ -102,14 +100,12 @@ def suggestion_keyboard():
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
     ])
 
-
 def writing_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Done", callback_data="done")],
         [InlineKeyboardButton("⬅️ Back", callback_data="back_cat")],
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
     ])
-
 
 # ====================== BOT HANDLERS ======================
 
@@ -121,7 +117,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         WELCOME,
         reply_markup=main_keyboard()
     )
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -198,18 +193,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
 
         sent_count = 0
-
         for admin_id in ADMIN_IDS:
-            try:
-                await asyncio.wait_for(
-                    context.bot.send_message(admin_id, admin_msg),
-                    timeout=10.0
-                )
+            if await safe_send_message(context.bot, admin_id, admin_msg):
                 sent_count += 1
                 logger.info(f"Sent to admin {admin_id}")
-
-            except Exception as e:
-                logger.error(f"Failed to send to admin {admin_id}: {e}")
+            else:
+                logger.error(f"Failed to send to admin {admin_id} after retries")
 
         await query.edit_message_text(THANK_YOU)
         context.user_data.clear()
@@ -218,34 +207,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         await query.edit_message_text(CANCEL_MSG)
 
-
 async def collect_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "messages" in context.user_data:
         text = update.message.text.strip()
-
         if text:
             context.user_data["messages"].append(text)
-
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Error: {context.error}", exc_info=True)
 
+# ====================== HELPER FUNCTIONS ======================
 
-# ====================== NEW FIXED START FUNCTION ======================
-
-async def start_bot(app):
-    await app.initialize()
-    await app.start()
-    print("🤖 Bot is running! Press Ctrl+C to stop")
-
-    try:
-        # Keep the bot running indefinitely
-        await asyncio.Event().wait()
-    finally:
-        await app.stop()
-        await app.shutdown()
-        print("❌ Bot stopped")
-
+async def safe_send_message(bot, chat_id, text, max_retries=3):
+    """Send a message with retries and exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            await asyncio.wait_for(
+                bot.send_message(chat_id, text),
+                timeout=15.0  # increased timeout for mobile networks
+            )
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout sending to {chat_id}, attempt {attempt+1}/{max_retries}")
+        except Exception as e:
+            logger.warning(f"Error sending to {chat_id} (attempt {attempt+1}): {e}")
+        if attempt < max_retries - 1:
+            await asyncio.sleep(2 ** attempt)  # 1, 2, 4 seconds
+    return False
 
 # ====================== MAIN FUNCTION ======================
 
@@ -255,34 +243,36 @@ def main():
     print("⚠️ Keep this app running in background")
     print("────────────────────────────────────")
 
-    try:
-        app = Application.builder().token(TOKEN).build()
+    # Restart loop to handle crashes
+    while True:
+        try:
+            app = Application.builder().token(TOKEN).build()
 
-        # Handlers
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CallbackQueryHandler(button_handler))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect_message))
-        app.add_error_handler(error_handler)
+            # Handlers
+            app.add_handler(CommandHandler("start", start))
+            app.add_handler(CallbackQueryHandler(button_handler))
+            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, collect_message))
+            app.add_error_handler(error_handler)
 
-        print("✅ Bot is running!")
-        print("❌ Press Ctrl+C to stop")
-        print("\n📊 Logs are saved to 'bot.log'")
+            print("✅ Bot is running!")
+            print("❌ Press Ctrl+C to stop")
+            print("\n📊 Logs are saved to 'bot.log'")
 
-        # Run polling safely
-        app.run_polling(timeout=60)
+            # Run polling with increased timeout
+            app.run_polling(timeout=120)  # doubled timeout
 
-    except Exception as e:
-        logger.error(f"Bot crashed: {e}")
-        print(f"❌ Bot crashed: {e}")
-
+        except KeyboardInterrupt:
+            print("\n❌ Bot stopped by user")
+            break
+        except Exception as e:
+            logger.error(f"Bot crashed: {e}")
+            print(f"❌ Bot crashed: {e}. Restarting in 10 seconds...")
+            time.sleep(10)
 
 if __name__ == "__main__":
     print("🔍 Checking requirements...")
-
     if TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("❌ ERROR: Please replace TOKEN with your bot token!")
         exit(1)
-
     print("────────────────────────────────────")
-
     main()
