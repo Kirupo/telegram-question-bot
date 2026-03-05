@@ -68,7 +68,7 @@ God bless! ☦️"""
 
 # ====================== KEYBOARD FUNCTIONS ======================
 
-def main_keyboard():
+def menu_keyboard():
 return InlineKeyboardMarkup([
 [InlineKeyboardButton("❓ Question", callback_data="question")],
 [InlineKeyboardButton("💡 Suggestion", callback_data="suggestion")]
