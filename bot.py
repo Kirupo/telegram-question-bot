@@ -236,14 +236,15 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 async def start_bot(app):
     await app.initialize()
     await app.start()
-    await app.bot.initialize()
+    print("🤖 Bot is running! Press Ctrl+C to stop")
 
-    await app.run_polling(
-        poll_interval=1.0,
-        timeout=20,
-        drop_pending_updates=True,
-        allowed_updates=Update.ALL_TYPES
-    )
+    try:
+        # Keep the bot running indefinitely
+        await asyncio.Event().wait()
+    finally:
+        await app.stop()
+        await app.shutdown()
+        print("❌ Bot stopped")
 
 
 # ====================== MAIN FUNCTION ======================
