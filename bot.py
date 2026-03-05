@@ -31,7 +31,7 @@ logging.StreamHandler(),
 logging.FileHandler('bot.log')
 ]
 )
-logger = logging.getLogger(**name**)
+logger = logging.getLogger(__name__)
 
 # ====================== MESSAGES ======================
 
