@@ -259,7 +259,7 @@ def main():
         app = (
             Application.builder()
             .token(TOKEN)
-            .concurrent_updates(True)
+            .get_updaes_equest_kwags({'timeout':30})\
             .build()
         )
 
